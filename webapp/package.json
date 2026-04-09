@@ -15,7 +15,8 @@
     "@vitejs/plugin-react": "^4.3.4",
     "terser": "^5.46.1",
     "typescript": "^5.6.3",
-    "vite": "^6.0.6"
+    "vite": "^6.0.6",
+    "wrangler": "^4.0.0"
   },
   "scripts": {
     "start": "vite",
@@ -24,6 +25,10 @@
     "build:staging": "VITE_SHOW_ADS=false VITE_AD_MODE=placeholder tsc && vite build",
     "build:prod": "VITE_SHOW_ADS=false VITE_AD_MODE=live tsc && vite build",
     "preview": "vite preview",
+    "deploy": "pnpm run build && wrangler deploy",
+    "deploy:preview": "pnpm run build && wrangler deploy --env preview",
+    "cf:dev": "wrangler dev",
+    "cf:tail": "wrangler tail",
     "test": "node --test server/utils/validateUrl.test.js extension/test/extension.test.js",
     "loadtest": "node scripts/loadtest.js"
   },

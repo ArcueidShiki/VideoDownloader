@@ -1,0 +1,48 @@
+// Cloudflare Workers — Static Assets (assets-only, no Worker script).
+//
+// The webapp is a React SPA built by Vite → ./dist.
+// This config tells Cloudflare: "serve that directory at the edge worldwide,
+// and treat unknown paths as SPA routes."
+//
+// Deploy:    pnpm exec wrangler deploy
+// Local dev: pnpm exec wrangler dev
+// Tail logs: pnpm exec wrangler tail
+//
+// Docs: https://developers.cloudflare.com/workers/static-assets/
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+
+  // Worker name — becomes <name>.<your-subdomain>.workers.dev
+  "name": "any-downloader",
+
+  // Set to today's date. Pins runtime behaviour so future Cloudflare
+  // changes don't silently alter how this worker runs.
+  "compatibility_date": "2026-04-10",
+
+  // ─── Static assets ────────────────────────────────────────────────────────
+  "assets": {
+    "directory": "./dist",
+
+    // SPA fallback: unknown URLs return index.html with 200 OK so the
+    // React client-side router can take over. This is the edge equivalent
+    // of nginx `try_files $uri $uri/ /index.html;`.
+    "not_found_handling": "single-page-application"
+  },
+
+  // ─── Observability (logs + metrics in the Cloudflare dashboard) ──────────
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+
+  // ─── Custom domain (uncomment after DNS is proxied through Cloudflare) ──
+  // Preconditions:
+  //   1. The domain is added to your Cloudflare account
+  //   2. DNS is managed by Cloudflare (orange-cloud)
+  //   3. No conflicting Page Rule / Worker Route already claims these paths
+  //
+  "routes": [
+    { "pattern": "videos-downloads.com",     "videos-downloads.com": true },
+    { "pattern": "www.videos-downloads.com", "videos-downloads.com": true }
+  ]
+}
