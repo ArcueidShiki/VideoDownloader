@@ -1,0 +1,113 @@
+name: videodownloader
+
+# ── Docker Compose — VideoDownloader ─────────────────────────────────────────
+# Services:
+#   app      — Node.js backend (yt-dlp + ffmpeg), internal port 3001
+#   nginx    — nginx: serves static frontend + reverse-proxies /api/ and /ws
+#   certbot  — one-shot / renew Let's Encrypt SSL certificates
+#
+# Quick start:
+#   1. cp .env.prod .env && edit .env (set DOMAIN, PORT, etc.)
+#   2. docker compose build
+#   3. docker compose run --rm certbot certonly   # first-time cert (see below)
+#   4. docker compose up -d
+#
+# Auto-restart on crash: all services use `restart: unless-stopped`
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Backend: Node.js + yt-dlp + ffmpeg ─────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: videodownloader-app
+    container_name: vd-app
+    restart: unless-stopped
+    env_file:
+      - .env                        # copy from .env.prod, fill in secrets
+    environment:
+      PORT: "${PORT:-3001}"
+      NODE_ENV: production
+    volumes:
+      # Persist active download temp files across restarts (optional)
+      - downloads:/tmp/anydownloader-sessions
+    networks:
+      - internal
+    # ── Memory limits — Oracle Cloud 1 GB instance ────────────────────────────
+    # OS ~200 MB, nginx 128 MB, Node.js 700 MB → total ~1028 MB (fits in 1 GB
+    # with Linux overcommit; set memswap_limit == mem_limit to disable swap).
+    mem_limit: 700m
+    memswap_limit: 700m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ── nginx: static frontend + reverse proxy ──────────────────────────────────
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+      args:
+        # Pass Vite build-time vars; defaults to production ad config
+        VITE_SHOW_ADS: "${VITE_SHOW_ADS:-true}"
+        VITE_AD_MODE:  "${VITE_AD_MODE:-live}"
+        VITE_API_BASE_URL: "${VITE_API_BASE_URL:-}"
+    image: videodownloader-nginx
+    container_name: vd-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Substituted into nginx.conf.template at container start
+      DOMAIN:       "${DOMAIN}"
+      BACKEND_HOST: "app"
+      BACKEND_PORT: "${PORT:-3001}"
+    volumes:
+      # SSL certificates managed by certbot on the host / certbot container
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      # ACME challenge webroot (certbot --webroot writes here)
+      - certbot_www:/var/www/certbot:ro
+    networks:
+      - internal
+    mem_limit: 128m
+    memswap_limit: 128m
+    depends_on:
+      app:
+        condition: service_healthy
+
+  # ── certbot: SSL certificate management ─────────────────────────────────────
+  # First-time cert (run once, interactively):
+  #   docker compose run --rm certbot certonly \
+  #     --webroot --webroot-path /var/www/certbot \
+  #     --email your@email.com --agree-tos --no-eff-email \
+  #     -d yourdomain.com
+  #
+  # Renewal (run via cron or manually):
+  #   docker compose run --rm certbot renew
+  certbot:
+    image: certbot/certbot:latest
+    container_name: vd-certbot
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    # No `restart` policy — certbot is a one-shot tool, not a daemon
+    profiles:
+      - certbot             # only starts with: docker compose --profile certbot run certbot
+
+# ── Networks ──────────────────────────────────────────────────────────────────
+networks:
+  internal:
+    driver: bridge
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+volumes:
+  downloads:
+    driver: local
+  certbot_www:
+    driver: local

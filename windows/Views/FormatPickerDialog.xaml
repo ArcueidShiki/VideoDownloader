@@ -1,0 +1,217 @@
+<ContentDialog
+    x:Class="AnyDownloader.Windows.Views.FormatPickerDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:AnyDownloader.Windows.Models"
+    Title="Select Format"
+    PrimaryButtonText="Download"
+    CloseButtonText="Cancel"
+    DefaultButton="Primary">
+
+    <ScrollViewer MaxHeight="600" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="16" Padding="4,0,4,0" MinWidth="540">
+
+            <!-- ── Video info header ──────────────────────────── -->
+            <Grid ColumnSpacing="14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        CornerRadius="6"
+                        Width="120" Height="68"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <Image x:Name="ThumbnailImage"
+                           Stretch="UniformToFill"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+                </Border>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                    <TextBlock x:Name="TitleText"
+                               Style="{StaticResource SubtitleTextBlockStyle}"
+                               TextWrapping="Wrap"
+                               MaxLines="2"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="UploaderText"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Opacity="0.7" />
+                    <TextBlock x:Name="DurationText"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Opacity="0.6" />
+                </StackPanel>
+            </Grid>
+
+            <NavigationViewItemSeparator />
+
+            <!-- ── Download options (TOP — user picks what to download) ── -->
+            <StackPanel Spacing="10">
+                <TextBlock Text="Download Options"
+                           Style="{StaticResource BodyStrongTextBlockStyle}" />
+
+                <!-- Video / Audio toggles -->
+                <StackPanel Orientation="Horizontal" Spacing="20">
+                    <CheckBox x:Name="IncludeVideoCheck"
+                              Content="Video"
+                              IsChecked="True"
+                              Checked="Options_Changed"
+                              Unchecked="Options_Changed" />
+                    <CheckBox x:Name="IncludeAudioCheck"
+                              Content="Audio"
+                              IsChecked="True"
+                              Checked="Options_Changed"
+                              Unchecked="Options_Changed" />
+                </StackPanel>
+
+                <!-- Merge option — only shown when both video + audio are selected -->
+                <StackPanel x:Name="MergeOptionPanel" Orientation="Horizontal">
+                    <CheckBox x:Name="MergeToMp4Check"
+                              Content="Merge into MP4"
+                              IsChecked="True" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- ── Video quality (shown only when Video is checked) ──────── -->
+            <StackPanel x:Name="VideoSection" Spacing="6">
+                <TextBlock Text="Video Quality"
+                           Style="{StaticResource BodyStrongTextBlockStyle}" />
+
+                <ListView x:Name="VideoFormatList"
+                          SelectionMode="Single"
+                          IsItemClickEnabled="True"
+                          ItemClick="VideoFormatList_ItemClick"
+                          MaxHeight="180"
+                          BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                          BorderThickness="1"
+                          CornerRadius="4">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="models:VideoFormat">
+                            <Grid Padding="4,6,4,6" ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="60" />
+                                    <ColumnDefinition Width="60" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{x:Bind QualityLabel}"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{x:Bind Container}"
+                                           Opacity="0.7"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2"
+                                           Text="{x:Bind Codec}"
+                                           Opacity="0.6"
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="3"
+                                           Text="{x:Bind DisplaySize}"
+                                           Opacity="0.5"
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </StackPanel>
+
+            <!-- ── Audio quality (shown only when Audio is checked) ──────── -->
+            <StackPanel x:Name="AudioSection" Spacing="6">
+                <TextBlock Text="Audio Quality"
+                           Style="{StaticResource BodyStrongTextBlockStyle}" />
+
+                <ListView x:Name="AudioFormatList"
+                          SelectionMode="Single"
+                          IsItemClickEnabled="True"
+                          ItemClick="AudioFormatList_ItemClick"
+                          MaxHeight="130"
+                          BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                          BorderThickness="1"
+                          CornerRadius="4">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="models:AudioFormat">
+                            <Grid Padding="4,6,4,6" ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="80" />
+                                    <ColumnDefinition Width="60" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{x:Bind Label}"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{x:Bind Container}"
+                                           Opacity="0.7"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2"
+                                           Opacity="0.0" />
+                                <TextBlock Grid.Column="3"
+                                           Text="{x:Bind DisplaySize}"
+                                           Opacity="0.5"
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </StackPanel>
+
+            <!-- ── Output settings ───────────────────────────── -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Save Settings"
+                           Style="{StaticResource BodyStrongTextBlockStyle}" />
+
+                <!-- Filename override -->
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="Filename:"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Opacity="0.7"
+                               VerticalAlignment="Center" />
+                    <TextBox x:Name="FilenameBox"
+                             Grid.Column="1"
+                             PlaceholderText="Leave blank for automatic name"
+                             FontSize="12" />
+                </Grid>
+
+                <!-- Output folder row -->
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <FontIcon Grid.Column="0"
+                              Glyph="&#xE8B7;"
+                              FontSize="14"
+                              Opacity="0.6"
+                              VerticalAlignment="Center" />
+
+                    <TextBlock x:Name="OutputDirText"
+                               Grid.Column="1"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               Opacity="0.7"
+                               Style="{StaticResource CaptionTextBlockStyle}" />
+
+                    <Button Grid.Column="2"
+                            Content="Change…"
+                            FontSize="12"
+                            Padding="8,4,8,4"
+                            Click="ChangeOutputDir_Click" />
+                </Grid>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</ContentDialog>

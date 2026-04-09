@@ -1,0 +1,613 @@
+<Window
+    x:Class="AnyDownloader.Windows.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:AnyDownloader.Windows"
+    xmlns:models="using:AnyDownloader.Windows.Models"
+    xmlns:viewmodels="using:AnyDownloader.Windows.ViewModels"
+    Title="AnyDownloader">
+
+    <Grid RequestedTheme="Dark"
+          Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <!-- URL input + output folder row -->
+            <RowDefinition Height="Auto" />
+            <!-- Tab filter bar -->
+            <RowDefinition Height="Auto" />
+            <!-- Download list -->
+            <RowDefinition Height="*" />
+            <!-- Bottom toolbar + status bar -->
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ═══════════════════════════════════════════════════════
+             ROW 0 — URL input bar + output directory
+             ═══════════════════════════════════════════════════════ -->
+        <Border Grid.Row="0"
+                Padding="12,10,12,6"
+                BorderThickness="0,0,0,1"
+                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}">
+            <StackPanel Spacing="6">
+
+                <!-- URL input row -->
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox
+                        x:Name="UrlTextBox"
+                        Grid.Column="0"
+                        PlaceholderText="Paste a URL, YouTube/video link, magnet URI, or .torrent path…"
+                        VerticalAlignment="Center"
+                        KeyDown="UrlTextBox_KeyDown" />
+
+                    <Button
+                        x:Name="AddButton"
+                        Grid.Column="1"
+                        Content="Add"
+                        Style="{StaticResource AccentButtonStyle}"
+                        VerticalAlignment="Center"
+                        Click="AddButton_Click" />
+
+                    <!-- Browse .torrent file -->
+                    <Button
+                        x:Name="BrowseButton"
+                        Grid.Column="2"
+                        Content="&#xE8A7;"
+                        FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                        ToolTipService.ToolTip="Browse for .torrent file"
+                        VerticalAlignment="Center"
+                        Click="BrowseButton_Click" />
+
+                    <!-- Play / Pause All toggle -->
+                    <Button
+                        x:Name="PlayPauseAllButton"
+                        Grid.Column="3"
+                        VerticalAlignment="Center"
+                        ToolTipService.ToolTip="Start All / Pause All"
+                        Click="PlayPauseAll_Click">
+                        <FontIcon x:Name="PlayPauseIcon" Glyph="&#xE768;" FontSize="14" />
+                    </Button>
+                </Grid>
+
+                <!-- Output folder row (mirrors macOS save-to row) -->
+                <Grid ColumnSpacing="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <FontIcon Grid.Column="0"
+                              Glyph="&#xE8B7;"
+                              FontSize="11"
+                              Opacity="0.5"
+                              VerticalAlignment="Center" />
+
+                    <TextBlock Grid.Column="1"
+                               Text="Save to:"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Opacity="0.5"
+                               VerticalAlignment="Center" />
+
+                    <HyperlinkButton
+                            Grid.Column="2"
+                            x:Name="OutputDirButton"
+                            FontSize="11"
+                            Padding="0,0,0,0"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Click="OutputDirButton_Click"
+                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}">
+                        <TextBlock x:Name="OutputDirLabel"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="320" />
+                    </HyperlinkButton>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- ═══════════════════════════════════════════════════════
+             ROW 1 — Tab filter bar (mirrors macOS TabFilterBar)
+             ═══════════════════════════════════════════════════════ -->
+        <Border Grid.Row="1"
+                Padding="8,4,8,4"
+                BorderThickness="0,0,0,1"
+                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}">
+            <Grid>
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <Button x:Name="TabAll"      Tag="All"      Content="{x:Bind ViewModel.AllTabLabel,      Mode=OneWay}" Click="TabButton_Click" />
+                    <Button x:Name="TabActive"   Tag="Active"   Content="{x:Bind ViewModel.ActiveTabLabel,   Mode=OneWay}" Click="TabButton_Click" />
+                    <Button x:Name="TabPaused"   Tag="Paused"   Content="{x:Bind ViewModel.PausedTabLabel,   Mode=OneWay}" Click="TabButton_Click" />
+                    <Button x:Name="TabDone"     Tag="Done"     Content="{x:Bind ViewModel.DoneTabLabel,     Mode=OneWay}" Click="TabButton_Click" />
+                    <Button x:Name="TabTorrents" Tag="Torrents" Content="{x:Bind ViewModel.TorrentsTabLabel, Mode=OneWay}" Click="TabButton_Click" />
+                </StackPanel>
+
+                <!-- Aggregate speed badge (right side, mirrors macOS) -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+                    <Ellipse x:Name="SpeedIndicator"
+                             Width="7" Height="7" VerticalAlignment="Center">
+                        <Ellipse.Fill>
+                            <SolidColorBrush Color="{x:Bind ViewModel.StatusIndicatorColor, Mode=OneWay}" />
+                        </Ellipse.Fill>
+                    </Ellipse>
+                    <TextBlock
+                        Text="{x:Bind ViewModel.AggregateSpeedText, Mode=OneWay}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Opacity="0.8"
+                        VerticalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═══════════════════════════════════════════════════════
+             ROW 2 — Download list
+             ═══════════════════════════════════════════════════════ -->
+        <Grid Grid.Row="2">
+
+            <!-- Empty-state placeholder -->
+            <StackPanel
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="8"
+                Visibility="{x:Bind ViewModel.HasNoDownloads, Mode=OneWay}">
+                <FontIcon Glyph="&#xE896;" FontSize="48" Opacity="0.25" />
+                <TextBlock
+                    Text="No downloads yet"
+                    Style="{StaticResource SubtitleTextBlockStyle}"
+                    Opacity="0.35"
+                    HorizontalAlignment="Center" />
+                <TextBlock
+                    Text="Paste a URL above and press Add"
+                    Style="{StaticResource CaptionTextBlockStyle}"
+                    Opacity="0.25"
+                    HorizontalAlignment="Center" />
+            </StackPanel>
+
+            <!-- Download queue ListView -->
+            <ListView
+                x:Name="DownloadListView"
+                ItemsSource="{x:Bind ViewModel.FilteredDownloads, Mode=OneWay}"
+                SelectionMode="None"
+                Padding="8,4,8,8">
+
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Padding" Value="0,3,0,3" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="models:DownloadItemModel">
+
+                        <Border
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="12,10,12,10">
+
+                            <Grid RowSpacing="6">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <!-- ── Row 0: thumbnail + badge + title + buttons ── -->
+                                <Grid Grid.Row="0" ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Thumbnail (shown when available) -->
+                                    <Border Grid.Column="0"
+                                            Width="56" Height="36"
+                                            CornerRadius="4"
+                                            Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                            Visibility="{x:Bind IsThumbnailVisible, Mode=OneWay}">
+                                        <Image Source="{x:Bind Thumbnail, Mode=OneWay}"
+                                               Stretch="UniformToFill" />
+                                    </Border>
+
+                                    <!-- Title column: badge + title + format info -->
+                                    <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+
+                                        <!-- Platform badge + title in one row -->
+                                        <Grid ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <Border Grid.Column="0"
+                                                    Background="{x:Bind TypeAccentBrush, Mode=OneWay}"
+                                                    CornerRadius="3"
+                                                    Padding="5,2,5,2"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock
+                                                    Text="{x:Bind TypeLabel, Mode=OneWay}"
+                                                    FontSize="9"
+                                                    FontWeight="SemiBold"
+                                                    Foreground="White" />
+                                            </Border>
+
+                                            <TextBlock
+                                                Grid.Column="1"
+                                                Text="{x:Bind DisplayTitle, Mode=OneWay}"
+                                                TextTrimming="CharacterEllipsis"
+                                                VerticalAlignment="Center"
+                                                ToolTipService.ToolTip="{x:Bind Url}" />
+                                        </Grid>
+
+                                        <!-- Format info line (duration, uploader, selected format) -->
+                                        <TextBlock
+                                            Text="{x:Bind FormatInfoText, Mode=OneWay}"
+                                            Visibility="{x:Bind IsFormatInfoVisible, Mode=OneWay}"
+                                            Style="{StaticResource CaptionTextBlockStyle}"
+                                            Opacity="0.55"
+                                            TextTrimming="CharacterEllipsis" />
+
+                                        <!-- Chip labels: destination directory · format -->
+                                        <StackPanel
+                                            Orientation="Horizontal"
+                                            Spacing="5"
+                                            Visibility="{x:Bind IsMetaLabelVisible, Mode=OneWay}">
+
+                                            <!-- Save directory chip -->
+                                            <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                    BorderThickness="1" CornerRadius="4"
+                                                    Padding="6,2,6,2">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <FontIcon Glyph="&#xE8B7;" FontSize="9"
+                                                              Opacity="0.55" VerticalAlignment="Center" />
+                                                    <TextBlock
+                                                        Text="{x:Bind PathLabel, Mode=OneWay}"
+                                                        Style="{StaticResource CaptionTextBlockStyle}"
+                                                        Opacity="0.65" TextTrimming="CharacterEllipsis"
+                                                        MaxWidth="200" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- Format chip (only when format is known) -->
+                                            <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                    BorderThickness="1" CornerRadius="4"
+                                                    Padding="6,2,6,2"
+                                                    Visibility="{x:Bind IsFormatLabelVisible, Mode=OneWay}">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <FontIcon Glyph="&#xE714;" FontSize="9"
+                                                              Opacity="0.55" VerticalAlignment="Center" />
+                                                    <TextBlock
+                                                        Text="{x:Bind FormatLabel, Mode=OneWay}"
+                                                        Style="{StaticResource CaptionTextBlockStyle}"
+                                                        Opacity="0.65" TextTrimming="CharacterEllipsis"
+                                                        MaxWidth="180" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <!-- Action buttons -->
+                                    <StackPanel Grid.Column="2"
+                                                Orientation="Horizontal"
+                                                Spacing="3"
+                                                VerticalAlignment="Center">
+
+                                        <!-- Pause (Active) -->
+                                        <Button Content="&#xE769;"
+                                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                FontSize="13" Padding="6,4,6,4"
+                                                ToolTipService.ToolTip="Pause"
+                                                Visibility="{x:Bind IsPauseVisible, Mode=OneWay}"
+                                                Command="{x:Bind PauseCommand}" />
+
+                                        <!-- Resume (Paused) -->
+                                        <Button Content="&#xE768;"
+                                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                FontSize="13" Padding="6,4,6,4"
+                                                ToolTipService.ToolTip="Resume"
+                                                Visibility="{x:Bind IsResumeVisible, Mode=OneWay}"
+                                                Command="{x:Bind ResumeCommand}" />
+
+                                        <!-- Start (Queued — user manually begins download) -->
+                                        <Button Content="&#xE896;"
+                                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                FontSize="13" Padding="6,4,6,4"
+                                                ToolTipService.ToolTip="Start download"
+                                                Visibility="{x:Bind IsStartVisible, Mode=OneWay}"
+                                                Command="{x:Bind StartCommand}" />
+
+                                        <!-- Play / Open with default media player (Completed) -->
+                                        <Button FontSize="13" Padding="6,4,6,4"
+                                                ToolTipService.ToolTip="Play with default media player"
+                                                Visibility="{x:Bind IsPlayVisible, Mode=OneWay}"
+                                                Command="{x:Bind PlayCommand}"
+                                                Style="{ThemeResource AccentButtonStyle}">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <FontIcon Glyph="&#xE768;"
+                                                          FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                          FontSize="11" />
+                                                <TextBlock Text="Play" FontSize="12" />
+                                            </StackPanel>
+                                        </Button>
+
+                                        <!-- Retry (Failed) -->
+                                        <Button Content="&#xE72C;"
+                                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                FontSize="13" Padding="6,4,6,4"
+                                                ToolTipService.ToolTip="Retry"
+                                                Visibility="{x:Bind IsRetryVisible, Mode=OneWay}"
+                                                Command="{x:Bind RetryCommand}" />
+
+                                        <!-- Show in Explorer (Completed) -->
+                                        <Button Content="&#xE8B7;"
+                                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                FontSize="13" Padding="6,4,6,4"
+                                                ToolTipService.ToolTip="Show in Explorer"
+                                                Visibility="{x:Bind IsOpenFolderVisible, Mode=OneWay}"
+                                                Command="{x:Bind OpenFolderCommand}" />
+
+                                        <!-- Pick output dir (pre-download states) -->
+                                        <Button Content="&#xE8DA;"
+                                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                FontSize="13" Padding="6,4,6,4"
+                                                ToolTipService.ToolTip="Change save folder for this download"
+                                                Visibility="{x:Bind IsPickOutputDirVisible, Mode=OneWay}"
+                                                Command="{x:Bind PickOutputDirCommand}" />
+
+                                        <!-- Remove / Cancel -->
+                                        <Button Content="&#xE74D;"
+                                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                FontSize="13" Padding="6,4,6,4"
+                                                ToolTipService.ToolTip="Remove"
+                                                Command="{x:Bind DeleteCommand}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- ── Row 1: progress bar ──────────────────────── -->
+                                <Grid Grid.Row="1"
+                                      ColumnSpacing="10"
+                                      Visibility="{x:Bind IsProgressVisible, Mode=OneWay}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <ProgressBar
+                                        Grid.Column="0"
+                                        Value="{x:Bind ProgressPercent, Mode=OneWay}"
+                                        Maximum="100"
+                                        IsIndeterminate="{x:Bind IsIndeterminate, Mode=OneWay}"
+                                        Foreground="{x:Bind ProgressBrush, Mode=OneWay}"
+                                        VerticalAlignment="Center" />
+
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Text="{x:Bind ProgressLabel, Mode=OneWay}"
+                                        Style="{StaticResource CaptionTextBlockStyle}"
+                                        Opacity="0.65"
+                                        MinWidth="44"
+                                        TextAlignment="Right"
+                                        VerticalAlignment="Center" />
+                                </Grid>
+
+                                <!-- ── Row 2: status + speed + ETA ─────────────── -->
+                                <Grid Grid.Row="2" ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Spinning ring while magnet/torrent metadata resolves -->
+                                    <ProgressRing
+                                        Grid.Column="0"
+                                        Width="14" Height="14"
+                                        IsActive="True"
+                                        Visibility="{x:Bind IsParsingVisible, Mode=OneWay}"
+                                        VerticalAlignment="Center" />
+
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Text="{x:Bind StatusText, Mode=OneWay}"
+                                        Style="{StaticResource CaptionTextBlockStyle}"
+                                        Foreground="{x:Bind StatusBrush, Mode=OneWay}"
+                                        TextTrimming="CharacterEllipsis"
+                                        VerticalAlignment="Center" />
+
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        Text="{x:Bind SpeedText, Mode=OneWay}"
+                                        Style="{StaticResource CaptionTextBlockStyle}"
+                                        Opacity="0.6"
+                                        VerticalAlignment="Center"
+                                        Visibility="{x:Bind IsSpeedVisible, Mode=OneWay}" />
+
+                                    <TextBlock
+                                        Grid.Column="3"
+                                        Text="{x:Bind EtaText, Mode=OneWay}"
+                                        Style="{StaticResource CaptionTextBlockStyle}"
+                                        Opacity="0.6"
+                                        VerticalAlignment="Center"
+                                        Visibility="{x:Bind IsEtaVisible, Mode=OneWay}" />
+                                </Grid>
+
+                                <!-- ── Row 3: Torrent file list + Separate files (expandable) ── -->
+                                <StackPanel Grid.Row="3" Spacing="4">
+
+                                <!-- Torrent file list -->
+                                <StackPanel
+                                    Spacing="4"
+                                    Visibility="{x:Bind IsTorrentSectionVisible, Mode=OneWay}">
+
+                                    <Rectangle Height="1"
+                                               Fill="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                               Opacity="0.4" />
+
+                                    <!-- Toggle button: "▾ 12 files" -->
+                                    <Button
+                                        Command="{x:Bind ToggleTorrentFilesCommand}"
+                                        Padding="4,2,4,2"
+                                        HorizontalAlignment="Left">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon
+                                                Glyph="{x:Bind TorrentExpanderGlyph, Mode=OneWay}"
+                                                FontSize="10"
+                                                Opacity="0.7" />
+                                            <TextBlock
+                                                Text="{x:Bind TorrentFilesCountLabel, Mode=OneWay}"
+                                                Style="{StaticResource CaptionTextBlockStyle}"
+                                                Opacity="0.7" />
+                                        </StackPanel>
+                                    </Button>
+
+                                    <!-- Collapsed file list -->
+                                    <ItemsControl
+                                        ItemsSource="{x:Bind TorrentFiles, Mode=OneWay}"
+                                        Visibility="{x:Bind IsTorrentFilesListVisible, Mode=OneWay}"
+                                        MaxHeight="160">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="models:TorrentFileEntry">
+                                                <Grid ColumnSpacing="12" Padding="4,1,4,1">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock
+                                                        Grid.Column="0"
+                                                        Text="{x:Bind DisplayPath}"
+                                                        Style="{StaticResource CaptionTextBlockStyle}"
+                                                        TextTrimming="CharacterEllipsis"
+                                                        Opacity="0.75" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Text="{x:Bind DisplaySize}"
+                                                        Style="{StaticResource CaptionTextBlockStyle}"
+                                                        Opacity="0.45" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <!-- Separate video+audio file list (expandable) -->
+                                <StackPanel
+                                    Spacing="4"
+                                    Visibility="{x:Bind IsSeparateFilesSectionVisible, Mode=OneWay}">
+
+                                    <Rectangle Height="1"
+                                               Fill="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                               Opacity="0.4" />
+
+                                    <Button
+                                        Command="{x:Bind ToggleSeparateFilesCommand}"
+                                        Padding="4,2,4,2"
+                                        HorizontalAlignment="Left">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon
+                                                Glyph="{x:Bind SeparateFilesExpanderGlyph, Mode=OneWay}"
+                                                FontSize="10"
+                                                Opacity="0.7" />
+                                            <TextBlock
+                                                Text="{x:Bind SeparateFilesCountLabel, Mode=OneWay}"
+                                                Style="{StaticResource CaptionTextBlockStyle}"
+                                                Opacity="0.7" />
+                                        </StackPanel>
+                                    </Button>
+
+                                    <ItemsControl
+                                        ItemsSource="{x:Bind FilePaths, Mode=OneWay}"
+                                        Visibility="{x:Bind IsSeparateFilesListVisible, Mode=OneWay}"
+                                        MaxHeight="80">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="x:String">
+                                                <TextBlock
+                                                    Text="{x:Bind}"
+                                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    Opacity="0.75"
+                                                    Padding="4,1,4,1" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Grid>
+
+        <!-- ═══════════════════════════════════════════════════════
+             ROW 3 — Bottom toolbar + status bar
+             ═══════════════════════════════════════════════════════ -->
+        <Border
+            Grid.Row="3"
+            Padding="12,8,12,8"
+            BorderThickness="0,1,0,0"
+            BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Left: bulk action buttons -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                    <Button
+                        Style="{StaticResource AccentButtonStyle}"
+                        Command="{x:Bind ViewModel.StartAllCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE768;" FontSize="12" />
+                            <TextBlock Text="Start All" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Command="{x:Bind ViewModel.PauseAllCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE769;" FontSize="12" />
+                            <TextBlock Text="Pause All" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Command="{x:Bind ViewModel.ClearCompletedCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE894;" FontSize="12" />
+                            <TextBlock Text="Clear Done" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- Right: status summary (mirrors macOS StatusBar) -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Ellipse x:Name="StatusIndicator"
+                             Width="8" Height="8" VerticalAlignment="Center">
+                        <Ellipse.Fill>
+                            <SolidColorBrush Color="{x:Bind ViewModel.StatusIndicatorColor, Mode=OneWay}" />
+                        </Ellipse.Fill>
+                    </Ellipse>
+                    <TextBlock
+                        Text="{x:Bind ViewModel.StatusSummary, Mode=OneWay}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Opacity="0.65"
+                        VerticalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

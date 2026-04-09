@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Plain net8.0-windows — no UseWinUI, no WinAppSDK, no MSIX tooling.
+         Pure-logic services compile fine with just the Windows base framework. -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Suppress the win10-* RID warnings from the SDK -->
+    <NoWarn>$(NoWarn);NETSDK1083</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk"    Version="17.9.0" />
+    <PackageReference Include="xunit"                     Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio"  Version="2.8.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="coverlet.collector"        Version="6.0.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <!-- CommunityToolkit.Mvvm is NOT needed here — we only test pure-logic code -->
+  </ItemGroup>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       Include only the pure-logic source files that have zero WinUI3 /
+       Windows App SDK dependencies. This avoids referencing the main
+       WinUI3 project (which bleeds MSIX / win10-* RIDs into the build).
+       ══════════════════════════════════════════════════════════════════ -->
+  <ItemGroup>
+    <!-- Shared enums: DownloadType, DownloadState, FilterTab -->
+    <Compile Include="..\Models\DownloadEnums.cs" />
+    <!-- Plain model records: VideoInfoModel, FormatSelection, TorrentSelection, etc. -->
+    <Compile Include="..\Models\VideoInfoModel.cs" />
+    <!-- Pure-logic services (no WinUI3 imports) -->
+    <Compile Include="..\Services\UrlClassifier.cs" />
+    <Compile Include="..\Services\DownloadEngine.cs" />
+    <Compile Include="..\Services\AppSettings.cs" />
+    <Compile Include="..\Services\BinaryResolver.cs" />
+    <Compile Include="..\Services\ToolsInstaller.cs" />
+    <Compile Include="..\Services\DownloadNamingService.cs" />
+    <Compile Include="..\Services\MetadataService.cs" />
+  </ItemGroup>
+
+</Project>

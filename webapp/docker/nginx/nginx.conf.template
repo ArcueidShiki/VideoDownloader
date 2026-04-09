@@ -1,0 +1,141 @@
+# ── VideoDownloader nginx config (Docker) ────────────────────────────────────
+# Environment variables substituted at container start:
+#   DOMAIN        — your domain, e.g. video-downloads.com (required)
+#   BACKEND_HOST  — backend service name in Docker network (default: app)
+#   BACKEND_PORT  — backend port (default: 3001)
+#
+# Rate-limit zones (defined here because this becomes the only conf.d file)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Rate-limit zones ──────────────────────────────────────────────────────────
+limit_req_zone  $binary_remote_addr zone=general:10m  rate=30r/s;
+limit_req_zone  $binary_remote_addr zone=api_info:5m  rate=3r/s;
+limit_req_zone  $binary_remote_addr zone=api_dl:5m    rate=1r/s;
+limit_conn_zone $binary_remote_addr zone=addr:10m;
+
+# ── Backend upstream ──────────────────────────────────────────────────────────
+upstream backend {
+    server ${BACKEND_HOST}:${BACKEND_PORT};
+    keepalive 16;
+}
+
+# ── HTTP → HTTPS redirect ─────────────────────────────────────────────────────
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+
+    # ACME challenge for Let's Encrypt cert renewal (certbot webroot plugin)
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# ── HTTPS main server ─────────────────────────────────────────────────────────
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${DOMAIN};
+
+    # ── SSL certificates ──────────────────────────────────────────────────────
+    # Mount /etc/letsencrypt from host: see docker-compose.yml volumes section.
+    # Obtain certs first: docker compose run --rm certbot certonly --webroot ...
+    ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_stapling        on;
+    ssl_stapling_verify on;
+
+    # ── Security headers ──────────────────────────────────────────────────────
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options          SAMEORIGIN;
+    add_header X-Content-Type-Options   nosniff;
+    add_header Referrer-Policy          strict-origin-when-cross-origin;
+    add_header X-XSS-Protection         "1; mode=block";
+    add_header Permissions-Policy       "camera=(), microphone=(), geolocation=()";
+    add_header Content-Security-Policy  "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' *.monetag.com *.greedyfines.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' wss://${DOMAIN};";
+
+    # ── Limits ────────────────────────────────────────────────────────────────
+    limit_conn addr 20;
+    limit_req  zone=general burst=80 nodelay;
+    limit_req_status 429;
+
+    # ── Static frontend ───────────────────────────────────────────────────────
+    root  /usr/share/nginx/html;
+    index index.html;
+
+    # Hashed assets: cache indefinitely (Vite includes content hash in filename)
+    location ~* \.(js|css|woff2?|ttf|otf|eot|svg|ico|png|jpg|webp)$ {
+        expires    1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    # index.html: never cache so the browser always gets the latest asset hashes
+    location = /index.html {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+    }
+
+    # ── API proxy ─────────────────────────────────────────────────────────────
+    location = /api/info {
+        limit_req zone=api_info burst=5 nodelay;
+        proxy_pass         http://backend;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+
+    location = /api/download {
+        limit_req zone=api_dl burst=3 nodelay;
+        proxy_pass         http://backend;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+
+    location /api/ {
+        limit_req zone=general burst=20 nodelay;
+        proxy_pass         http://backend;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        # Long timeout for large file downloads
+        proxy_read_timeout    600s;
+        proxy_send_timeout    600s;
+        # Stream large downloads directly — no nginx buffering
+        proxy_buffering         off;
+        proxy_request_buffering off;
+    }
+
+    # ── WebSocket proxy (download progress stream) ────────────────────────────
+    location /ws {
+        proxy_pass         http://backend;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade    $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        # Keep WS alive during long downloads (24 h max)
+        proxy_read_timeout 86400s;
+    }
+
+    # ── SPA fallback ──────────────────────────────────────────────────────────
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

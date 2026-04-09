@@ -1,0 +1,132 @@
+# ── macOS App ────────────────────────────────────────────────────────────────
+macos/build/
+macos/DerivedData/
+macos/*.xcworkspace/xcuserdata/
+macos/*.xcodeproj/xcuserdata/
+macos/*.xcodeproj/project.xcworkspace/xcuserdata/
+macos/.DS_Store
+macos/AnyDownloader.xcodeproj/xcshareddata/
+macos/AnyDownloader.xcarchive/
+
+# Swift Package Manager
+macos/.build/
+macos/.swiftpm/
+
+# Bundled / generated binaries (aria2c, yt-dlp, ffmpeg etc.)
+macos/Binaries/
+
+# Cocoapods (if ever used)
+macos/Pods/
+
+# ── Windows App (.NET / WPF) ──────────────────────────────────────────────────
+src/*/bin/
+src/*/obj/
+tests/*/bin/
+tests/*/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.ncrunchproject
+*.ncrunchsolution
+
+# NuGet
+*.nupkg
+*.nuspec
+packages/
+!**/packages/repositories.config
+nuget.config
+
+# ── Webapp (React / Node) ─────────────────────────────────────────────────────
+node_modules/
+webapp/node_modules/
+webapp/dist/
+webapp/build/
+webapp/.next/
+webapp/.nuxt/
+webapp/.cache/
+webapp/coverage/
+webapp/.env.local
+webapp/.env.*.local
+webapp/.env.production        # contains Monetag publisher IDs — never commit
+!webapp/.env.development      # safe to commit — no secrets, dev URLs only
+!webapp/.env.example          # template — always commit
+
+# ── General ───────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.bak
+*.swp
+*.orig
+.idea/
+.vscode/
+*.iml
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.key
+
+# OS & editor
+*~
+.AppleDouble
+.LSOverride
+Icon\r
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Test results
+TestResults/
+*.trx
+coverage.xml
+lcov.info
+
+# ── Additional Exclusions ────────────────────────────────────────────────────
+.vs
+.vs/
+node_modules
+node_modules/
+bin/
+obj/
+.DS_Store
+
+# ── Windows packaging build artifacts ────────────────────────────────────────
+windows/publish/
+windows/dist/
+windows/tools-x64/
+windows/tools-x86/
+windows/tools-arm64/
+windows/msix-layout-x64/
+windows/msix-layout-x86/
+windows/msix-layout-arm64/
+windows/*.wixpdb
+**/*.exe
+**/*.pdb
+**/bin
+**/.claude
+**/*.md
+**/.env.*
+
+# ── Signing material / code-signing artifacts ────────────────────────────────
+# Never commit certificate bundles — they contain private keys.
+**/*.pfx
+**/*.p12
+**/*.snk
+
+# ── Runtime deployment configs (never commit — contain server-specific data) ─
+# nginx.conf stays in git as a template with __PLACEHOLDER__ tokens.
+webapp/.env.prod
+webapp/.env.production
+# ── Scripts (kept locally, never committed) ──────────────────────────────────
+**/*.py
+**/*.sh

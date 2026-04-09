@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key><string>AnyDownloader</string>
+    <key>CFBundleIdentifier</key><string>com.anydownloader.app</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>1.0.0</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
+    <key>NSPrincipalClass</key><string>NSApplication</string>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
+    <key>NSHumanReadableDescription</key><string>Universal download manager for macOS</string>
+    <key>NSDownloadsFolderUsageDescription</key><string>AnyDownloader saves files to your Downloads folder.</string>
+    <key>NSDocumentsFolderUsageDescription</key><string>AnyDownloader can save files to your Documents folder.</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSUIElement</key><false/>
+    <!-- ATS: allow arbitrary HTTP/HTTPS loads because AnyDownloader must fetch URLs
+         chosen by the user, including plain-HTTP resources. This is standard for
+         download-manager category apps and is accepted by App Review with the
+         NSDownloadsFolderUsageDescription justification above. -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key><true/>
+    </dict>
+    <!-- Deep-link URL scheme so the Chrome extension (and other apps)
+         can hand off downloads via: anydownloader://download?url=<encoded>&title=<...> -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.anydownloader.app.url</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>anydownloader</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

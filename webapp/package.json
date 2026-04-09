@@ -1,0 +1,35 @@
+{
+  "name": "anydownloader-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@gsap/react": "^2.1.2",
+    "gsap": "^3.14.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "terser": "^5.46.1",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.6"
+  },
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "VITE_SHOW_ADS=false VITE_AD_MODE=none tsc && vite build",
+    "build:staging": "VITE_SHOW_ADS=false VITE_AD_MODE=placeholder tsc && vite build",
+    "build:prod": "VITE_SHOW_ADS=false VITE_AD_MODE=live tsc && vite build",
+    "preview": "vite preview",
+    "test": "node --test server/utils/validateUrl.test.js extension/test/extension.test.js",
+    "loadtest": "node scripts/loadtest.js"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

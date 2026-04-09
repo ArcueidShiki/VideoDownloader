@@ -1,0 +1,6 @@
+@AnyDownloader.API_HostAddress = http://localhost:5160
+
+GET {{AnyDownloader.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

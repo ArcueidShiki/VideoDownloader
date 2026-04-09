@@ -1,0 +1,30 @@
+{
+  "configurations" : [
+    {
+      "id" : "55D11BCE-D985-4769-93DB-1694CCB1B292",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : false,
+    "performanceAntipatternCheckerEnabled" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:AnyDownloader.xcodeproj",
+      "identifier" : "EE1282E33E02FFEACE0918C0",
+      "name" : "AnyDownloader"
+    }
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:",
+        "identifier" : "AnyDownloaderCoreTests",
+        "name" : "AnyDownloaderCoreTests"
+      }
+    }
+  ],
+  "version" : 1
+}

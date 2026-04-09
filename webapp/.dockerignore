@@ -1,0 +1,30 @@
+# ── Build artifacts ───────────────────────────────────────────────────────────
+dist/
+*.tsbuildinfo
+
+# ── Dependencies (reinstalled inside image) ───────────────────────────────────
+node_modules/
+server/node_modules/
+
+# ── Env / secrets (never ship into image) ────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Dev & CI ──────────────────────────────────────────────────────────────────
+.git/
+.github/
+*.log
+logs/
+
+# ── Editor / OS ───────────────────────────────────────────────────────────────
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# ── Test / docs (not needed at runtime) ──────────────────────────────────────
+scripts/
+*.md
+image*.png
+screenshot*.png

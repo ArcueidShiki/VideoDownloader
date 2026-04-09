@@ -1,0 +1,10 @@
+# VideoDownloader robots.txt
+
+User-agent: *
+Allow: /
+
+# Block API endpoints from indexing
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://videos-downloads.com/sitemap.xml

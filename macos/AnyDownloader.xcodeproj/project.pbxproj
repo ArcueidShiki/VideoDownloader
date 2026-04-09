@@ -1,0 +1,533 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		01FD398C02CD07198F1D168F /* TorrentFilePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25DD02B0BECA17267C48F2B7 /* TorrentFilePickerSheet.swift */; };
+		086E39AB64BC1B291D2C7BD4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B9DEC973797EEAA35EFA32FF /* Assets.xcassets */; };
+		0BCACD9154591AC14AF6A544 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 023C1C911F22708AABE962FB /* KeychainHelper.swift */; };
+		0DAB0D48D2CEF992E32AC8DF /* error.wav in Resources */ = {isa = PBXBuildFile; fileRef = A9C624C06C64D64E4A79BE00 /* error.wav */; };
+		11D5DE0E973DFE9A25705FCF /* AppUpdateBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B512AE2E27CEE0366C2A02EB /* AppUpdateBannerView.swift */; };
+		1C3D0F14DBB68882D1DB02C0 /* DownloadRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C13D667D867FDAAAA8CF072 /* DownloadRowView.swift */; };
+		28D94E7180AC834C43229E3B /* URLInfoPreviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 962C15D1C8006F31EF0327F3 /* URLInfoPreviewSheet.swift */; };
+		2B187F027BE937EA46F473F9 /* DebugMonetizationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86B6BD8879A1ECD1CA7CEAD2 /* DebugMonetizationView.swift */; };
+		40DD7CFD4E0C19E6EF3EA55A /* AnyDownloaderCore in Frameworks */ = {isa = PBXBuildFile; productRef = 7A5C14E61DAD544BB7451B67 /* AnyDownloaderCore */; };
+		4A5F42555F4ED9C0F8354C9E /* AnyDownloaderApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF5A28DCEAE64499C653C7E6 /* AnyDownloaderApp.swift */; };
+		4B5901B1C21CD941E41B4088 /* SoundManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16D3A480661946AFAA386768 /* SoundManager.swift */; };
+		54DC8FA1041D6C6DF2D45473 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020F30DDD0B5D432ACEC79C1 /* MenuBarView.swift */; };
+		5569B638C5DDFC212A2C0056 /* StatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06C334220136F829F5C12764 /* StatusBar.swift */; };
+		747F630D2B69367E786C1F07 /* DependencySetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 873076A6361376A7788225FE /* DependencySetupView.swift */; };
+
+
+
+		792C365F6A0F44313C9F35D6 /* ToolbarURLBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7810BBC72A06AA7AEC17595C /* ToolbarURLBar.swift */; };
+		85A598CC19724092242ACCFD /* AppUpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F6F9E8C7A6FF1EA522DDC1 /* AppUpdateChecker.swift */; };
+		8863B834949590F8742C4EAE /* DownloadQuotaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AB81E3D45D6CC8CBBA6DB1A /* DownloadQuotaService.swift */; };
+		9CD05D54F1EC2D35AE833653 /* TabFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9499EF8BAB27BD236DC8D983 /* TabFilterBar.swift */; };
+		A5DB00343C05CD58F3082338 /* PaywallSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC5158D0EBA3190386513680 /* PaywallSheets.swift */; };
+		BB9814D204667446D364E7AB /* DownloadListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01B76D1A7D3DF0EC19999AE6 /* DownloadListView.swift */; };
+		CAC1AD053712EBF021ABFE4A /* StoreKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C7B92F23999842AE5BF5764 /* StoreKitManager.swift */; };
+		D653944BEF0C9DCA073F91BA /* PaymentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 783E41E5BDF04C46D004E13C /* PaymentView.swift */; };
+		DBA60430784E5D6F24F247BA /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEDB38BBB36D79365B4444D8 /* AppDelegate.swift */; };
+		F024F5FF4A4E0EE88ADA8CDD /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDC768DCD1D20EEB48C9A1DF /* ContentView.swift */; };
+		F55184392F084CB53F71B82D /* complete.wav in Resources */ = {isa = PBXBuildFile; fileRef = F01A2DAD5A2D894CE5E69141 /* complete.wav */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		01B76D1A7D3DF0EC19999AE6 /* DownloadListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadListView.swift; sourceTree = "<group>"; };
+		020F30DDD0B5D432ACEC79C1 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		023C1C911F22708AABE962FB /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		04B5404D7DB94664970C17B1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		06C334220136F829F5C12764 /* StatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBar.swift; sourceTree = "<group>"; };
+		16D3A480661946AFAA386768 /* SoundManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundManager.swift; sourceTree = "<group>"; };
+		1E26CD76CAF45F8A9B3A0AF9 /* AnyDownloader.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AnyDownloader.entitlements; sourceTree = "<group>"; };
+		25DD02B0BECA17267C48F2B7 /* TorrentFilePickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentFilePickerSheet.swift; sourceTree = "<group>"; };
+		5C7B92F23999842AE5BF5764 /* StoreKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitManager.swift; sourceTree = "<group>"; };
+		750AB5422F6E55D300DDEF12 /* AnyDownloader.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = AnyDownloader.xctestplan; sourceTree = "<group>"; };
+		75F23AAC2F7455E300AC1010 /* aria2c */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = aria2c; path = Binaries/aria2c; sourceTree = "<group>"; };
+		75F23AAE2F7455FC00AC1010 /* ffprobe */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = ffprobe; path = Binaries/ffprobe; sourceTree = "<group>"; };
+		75F23AAF2F7455FC00AC1010 /* yt-dlp */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "yt-dlp"; path = "Binaries/yt-dlp"; sourceTree = "<group>"; };
+		75F23AB02F7455FC00AC1010 /* ffmpeg */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = ffmpeg; path = Binaries/ffmpeg; sourceTree = "<group>"; };
+		7810BBC72A06AA7AEC17595C /* ToolbarURLBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarURLBar.swift; sourceTree = "<group>"; };
+		783E41E5BDF04C46D004E13C /* PaymentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentView.swift; sourceTree = "<group>"; };
+		84F6F9E8C7A6FF1EA522DDC1 /* AppUpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateChecker.swift; sourceTree = "<group>"; };
+		86B6BD8879A1ECD1CA7CEAD2 /* DebugMonetizationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugMonetizationView.swift; sourceTree = "<group>"; };
+		873076A6361376A7788225FE /* DependencySetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencySetupView.swift; sourceTree = "<group>"; };
+		8AB81E3D45D6CC8CBBA6DB1A /* DownloadQuotaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadQuotaService.swift; sourceTree = "<group>"; };
+		9499EF8BAB27BD236DC8D983 /* TabFilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabFilterBar.swift; sourceTree = "<group>"; };
+		962C15D1C8006F31EF0327F3 /* URLInfoPreviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLInfoPreviewSheet.swift; sourceTree = "<group>"; };
+		9C13D667D867FDAAAA8CF072 /* DownloadRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadRowView.swift; sourceTree = "<group>"; };
+		A9C624C06C64D64E4A79BE00 /* error.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = error.wav; sourceTree = "<group>"; };
+		AA690B8222B522682B027FDB /* macos */ = {isa = PBXFileReference; lastKnownFileType = folder; name = macos; path = .; sourceTree = SOURCE_ROOT; };
+		AC5158D0EBA3190386513680 /* PaywallSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallSheets.swift; sourceTree = "<group>"; };
+		B512AE2E27CEE0366C2A02EB /* AppUpdateBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateBannerView.swift; sourceTree = "<group>"; };
+		B9DEC973797EEAA35EFA32FF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		DDC768DCD1D20EEB48C9A1DF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		EB49C9712DDFFB3B8574F108 /* AnyDownloader.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AnyDownloader.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EEDB38BBB36D79365B4444D8 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		F01A2DAD5A2D894CE5E69141 /* complete.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = complete.wav; sourceTree = "<group>"; };
+		FF5A28DCEAE64499C653C7E6 /* AnyDownloaderApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyDownloaderApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		00AA3C2D85DE0212B5127D19 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				40DD7CFD4E0C19E6EF3EA55A /* AnyDownloaderCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		093495CB36C451FF52DF7ED6 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				EB49C9712DDFFB3B8574F108 /* AnyDownloader.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		51AD650D3E1CD04977BFE32D /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				84F6F9E8C7A6FF1EA522DDC1 /* AppUpdateChecker.swift */,
+				8AB81E3D45D6CC8CBBA6DB1A /* DownloadQuotaService.swift */,
+				023C1C911F22708AABE962FB /* KeychainHelper.swift */,
+				5C7B92F23999842AE5BF5764 /* StoreKitManager.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		61AA669A79ABD8E2D60E9309 /* AnyDownloader */ = {
+			isa = PBXGroup;
+			children = (
+				1E26CD76CAF45F8A9B3A0AF9 /* AnyDownloader.entitlements */,
+				FF5A28DCEAE64499C653C7E6 /* AnyDownloaderApp.swift */,
+				EEDB38BBB36D79365B4444D8 /* AppDelegate.swift */,
+				B9DEC973797EEAA35EFA32FF /* Assets.xcassets */,
+				04B5404D7DB94664970C17B1 /* Info.plist */,
+				16D3A480661946AFAA386768 /* SoundManager.swift */,
+				B6B6D5A1CBFBDD783A49DDE8 /* Resources */,
+				51AD650D3E1CD04977BFE32D /* Services */,
+				EED8F13C50F89CFCF49E6FA9 /* Views */,
+			);
+			path = AnyDownloader;
+			sourceTree = "<group>";
+		};
+		7C9921481CC8D83F4D3462D5 = {
+			isa = PBXGroup;
+			children = (
+				75F23AB02F7455FC00AC1010 /* ffmpeg */,
+				75F23AAE2F7455FC00AC1010 /* ffprobe */,
+				75F23AAF2F7455FC00AC1010 /* yt-dlp */,
+				75F23AAC2F7455E300AC1010 /* aria2c */,
+				750AB5422F6E55D300DDEF12 /* AnyDownloader.xctestplan */,
+				61AA669A79ABD8E2D60E9309 /* AnyDownloader */,
+				A0FB20510EE49B3439A49F51 /* Packages */,
+				093495CB36C451FF52DF7ED6 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A0FB20510EE49B3439A49F51 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				AA690B8222B522682B027FDB /* macos */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		B6B6D5A1CBFBDD783A49DDE8 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				F01A2DAD5A2D894CE5E69141 /* complete.wav */,
+				A9C624C06C64D64E4A79BE00 /* error.wav */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		EED8F13C50F89CFCF49E6FA9 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				B512AE2E27CEE0366C2A02EB /* AppUpdateBannerView.swift */,
+				DDC768DCD1D20EEB48C9A1DF /* ContentView.swift */,
+				86B6BD8879A1ECD1CA7CEAD2 /* DebugMonetizationView.swift */,
+				873076A6361376A7788225FE /* DependencySetupView.swift */,
+				01B76D1A7D3DF0EC19999AE6 /* DownloadListView.swift */,
+				9C13D667D867FDAAAA8CF072 /* DownloadRowView.swift */,
+				020F30DDD0B5D432ACEC79C1 /* MenuBarView.swift */,
+				783E41E5BDF04C46D004E13C /* PaymentView.swift */,
+				AC5158D0EBA3190386513680 /* PaywallSheets.swift */,
+				06C334220136F829F5C12764 /* StatusBar.swift */,
+				9499EF8BAB27BD236DC8D983 /* TabFilterBar.swift */,
+				7810BBC72A06AA7AEC17595C /* ToolbarURLBar.swift */,
+				25DD02B0BECA17267C48F2B7 /* TorrentFilePickerSheet.swift */,
+				962C15D1C8006F31EF0327F3 /* URLInfoPreviewSheet.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		EE1282E33E02FFEACE0918C0 /* AnyDownloader */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A6A255CA47616175621A8D45 /* Build configuration list for PBXNativeTarget "AnyDownloader" */;
+			buildPhases = (
+				2555507223C53F1C39765539 /* Sources */,
+				ECEC59C396A6571614FB71E5 /* Resources */,
+				00AA3C2D85DE0212B5127D19 /* Frameworks */,
+				7FD735C0D74115DA32ED6BA8 /* Bundle and Sign Binaries */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AnyDownloader;
+			packageProductDependencies = (
+				7A5C14E61DAD544BB7451B67 /* AnyDownloaderCore */,
+			);
+			productName = AnyDownloader;
+			productReference = EB49C9712DDFFB3B8574F108 /* AnyDownloader.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4271617330FE0571DA5423A3 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = 82DF0170551A79A3D5E2F237 /* Build configuration list for PBXProject "AnyDownloader" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 7C9921481CC8D83F4D3462D5;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AA7E26F561A90B255456124C /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 093495CB36C451FF52DF7ED6 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				EE1282E33E02FFEACE0918C0 /* AnyDownloader */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		ECEC59C396A6571614FB71E5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				086E39AB64BC1B291D2C7BD4 /* Assets.xcassets in Resources */,
+				F55184392F084CB53F71B82D /* complete.wav in Resources */,
+				0DAB0D48D2CEF992E32AC8DF /* error.wav in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		7FD735C0D74115DA32ED6BA8 /* Bundle and Sign Binaries */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Binaries/yt-dlp",
+				"$(SRCROOT)/Binaries/aria2c",
+				"$(SRCROOT)/Binaries/ffmpeg",
+				"$(SRCROOT)/Binaries/ffprobe",
+			);
+			name = "Bundle and Sign Binaries";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/yt-dlp",
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/aria2c",
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/ffmpeg",
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/ffprobe",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "RDIR=\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources\"\nSRCDIR=\"${SRCROOT}/Binaries\"\nfor BIN in yt-dlp aria2c ffmpeg ffprobe; do\n  SRC=\"$SRCDIR/$BIN\"\n  DEST=\"$RDIR/$BIN\"\n  if [ -f \"$SRC\" ]; then\n    cp -f \"$SRC\" \"$DEST\"\n    chmod +x \"$DEST\"\n    codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" \\\n      \"$DEST\" 2>/dev/null || true\n  fi\ndone\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		2555507223C53F1C39765539 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4A5F42555F4ED9C0F8354C9E /* AnyDownloaderApp.swift in Sources */,
+				DBA60430784E5D6F24F247BA /* AppDelegate.swift in Sources */,
+				11D5DE0E973DFE9A25705FCF /* AppUpdateBannerView.swift in Sources */,
+				85A598CC19724092242ACCFD /* AppUpdateChecker.swift in Sources */,
+				F024F5FF4A4E0EE88ADA8CDD /* ContentView.swift in Sources */,
+				2B187F027BE937EA46F473F9 /* DebugMonetizationView.swift in Sources */,
+				747F630D2B69367E786C1F07 /* DependencySetupView.swift in Sources */,
+				BB9814D204667446D364E7AB /* DownloadListView.swift in Sources */,
+				8863B834949590F8742C4EAE /* DownloadQuotaService.swift in Sources */,
+				1C3D0F14DBB68882D1DB02C0 /* DownloadRowView.swift in Sources */,
+				0BCACD9154591AC14AF6A544 /* KeychainHelper.swift in Sources */,
+				54DC8FA1041D6C6DF2D45473 /* MenuBarView.swift in Sources */,
+				D653944BEF0C9DCA073F91BA /* PaymentView.swift in Sources */,
+				A5DB00343C05CD58F3082338 /* PaywallSheets.swift in Sources */,
+				4B5901B1C21CD941E41B4088 /* SoundManager.swift in Sources */,
+				5569B638C5DDFC212A2C0056 /* StatusBar.swift in Sources */,
+				CAC1AD053712EBF021ABFE4A /* StoreKitManager.swift in Sources */,
+				9CD05D54F1EC2D35AE833653 /* TabFilterBar.swift in Sources */,
+				792C365F6A0F44313C9F35D6 /* ToolbarURLBar.swift in Sources */,
+				01FD398C02CD07198F1D168F /* TorrentFilePickerSheet.swift in Sources */,
+				28D94E7180AC834C43229E3B /* URLInfoPreviewSheet.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1F5FE7B6C807DBCD3510A13F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = NO;
+				CODE_SIGN_ENTITLEMENTS = AnyDownloader/AnyDownloader.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 66PXMXXT2N;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
+				INFOPLIST_FILE = AnyDownloader/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.anydownloader.app;
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = YES;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = YES;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		292F4BF95F83E06BB99D72E3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		834399CE6AA79C761A30C661 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		B38F493F1E306F22C940A591 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = NO;
+				CODE_SIGN_ENTITLEMENTS = AnyDownloader/AnyDownloader.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 66PXMXXT2N;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
+				INFOPLIST_FILE = AnyDownloader/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.anydownloader.app;
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = YES;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = YES;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		82DF0170551A79A3D5E2F237 /* Build configuration list for PBXProject "AnyDownloader" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				292F4BF95F83E06BB99D72E3 /* Debug */,
+				834399CE6AA79C761A30C661 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A6A255CA47616175621A8D45 /* Build configuration list for PBXNativeTarget "AnyDownloader" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1F5FE7B6C807DBCD3510A13F /* Debug */,
+				B38F493F1E306F22C940A591 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		AA7E26F561A90B255456124C /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		7A5C14E61DAD544BB7451B67 /* AnyDownloaderCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AnyDownloaderCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 4271617330FE0571DA5423A3 /* Project object */;
+}
