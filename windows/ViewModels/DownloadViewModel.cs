@@ -805,7 +805,12 @@ public sealed partial class DownloadViewModel : ObservableObject
         if (BlockIncompatibleVideoDependency(item)) return;
         var attempt = await _ytDlpRuns.BeginAsync(item.Id);
         if (!_ytDlpRuns.IsCurrent(item.Id, attempt)) return;
-        RunOnUi(() => { item.State = DownloadState.Active; item.ErrorMessage = null; });
+        RunOnUi(() =>
+        {
+            if (!_ytDlpRuns.IsCurrent(item.Id, attempt)) return;
+            item.State = DownloadState.Active;
+            item.ErrorMessage = null;
+        });
         var paths = new List<string>();
         try
         {

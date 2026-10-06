@@ -8,6 +8,10 @@
   #define Arch "x64"
 #endif
 
+#ifndef CompressionPreset
+  #define CompressionPreset "lzma2/ultra64"
+#endif
+
 #define AppName      "AnyDownloader"
 #define AppVersion   "1.1.0"
 #define AppPublisher "AnyDownloader"
@@ -26,7 +30,7 @@ PrivilegesRequired=lowest
 DefaultGroupName={#AppName}
 OutputDir=dist
 OutputBaseFilename=AnyDownloader-{#AppVersion}-{#Arch}-setup
-Compression=lzma2/ultra64
+Compression={#CompressionPreset}
 SolidCompression=yes
 #if Arch == "x64"
 ArchitecturesInstallIn64BitMode=x64
