@@ -39,6 +39,8 @@
     <!-- Pure-logic services (no WinUI3 imports) -->
     <Compile Include="..\Services\UrlClassifier.cs" />
     <Compile Include="..\Services\DownloadEngine.cs" />
+    <Compile Include="..\Services\YtDlpIntegration.cs" />
+    <Compile Include="..\Services\YtDlpRunTracker.cs" />
     <Compile Include="..\Services\AppSettings.cs" />
     <Compile Include="..\Services\BinaryResolver.cs" />
     <Compile Include="..\Services\ToolsInstaller.cs" />

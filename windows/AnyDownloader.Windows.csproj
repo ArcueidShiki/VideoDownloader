@@ -3,10 +3,9 @@
   <PropertyGroup>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
-    <PublishSingleFile>true</PublishSingleFile>
+    <PublishSingleFile>false</PublishSingleFile>
     <EnableMsixTooling>true</EnableMsixTooling>
     <DebuggerSupport>false</DebuggerSupport>
-  <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
@@ -46,7 +45,8 @@
     <EnableMsixTooling Condition="'$(Configuration)' == 'Release'">true</EnableMsixTooling>
 
     <!-- Package identity (used by MSIX) -->
-    <ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
+    <ApplicationDisplayVersion>1.0.1</ApplicationDisplayVersion>
+    <Version>1.0.1</Version>
     <ApplicationVersion>1</ApplicationVersion>
     <StartupObject>AnyDownloader.Windows.Program</StartupObject>
   </PropertyGroup>
@@ -75,6 +75,8 @@
     <Content Include="tools\ffmpeg.exe" Condition="Exists('tools\ffmpeg.exe')" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="tools\ffprobe.exe" Condition="Exists('tools\ffprobe.exe')" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="tools\aria2c.exe" Condition="Exists('tools\aria2c.exe')" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="tools\deno.exe" Condition="Exists('tools\deno.exe')" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="tools\licenses\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="tools\README.txt" Condition="Exists('tools\README.txt')" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

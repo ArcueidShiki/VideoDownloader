@@ -31,6 +31,8 @@ public static class BinaryResolver
     public static string? FindFfmpeg()   => Resolve("ffmpeg.exe");
     public static string? FindFfprobe()  => Resolve("ffprobe.exe");
     public static string? FindAria2c()   => Resolve("aria2c.exe");
+    public static string? FindDeno()     => Resolve("deno.exe");
+    public static string? FindNode()     => Resolve("node.exe");
 
     /// <summary>
     /// Returns true if all required tools are available.

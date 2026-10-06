@@ -98,6 +98,8 @@ public sealed partial class DownloadViewModel : ObservableObject
 
     private readonly Dictionary<Guid, Process> _activeProcesses = new();
     private readonly object _processLock = new();
+    private readonly YtDlpRunTracker _ytDlpRuns = new();
+    private readonly Dictionary<Guid, CancellationTokenSource> _metadataCancellation = new();
 
     // ─────────────────────────────────────────────────────
     // Persistence
@@ -406,6 +408,13 @@ public sealed partial class DownloadViewModel : ObservableObject
 
     private async Task FetchYtDlpMetadataAsync(DownloadItemModel item)
     {
+        using var cancellation = new CancellationTokenSource();
+        lock (_processLock)
+        {
+            if (_metadataCancellation.Remove(item.Id, out var previous)) previous.Cancel();
+            _metadataCancellation[item.Id] = cancellation;
+        }
+        var ct = cancellation.Token;
         RunOnUi(() => item.State = DownloadState.FetchingInfo);
 
         try
@@ -428,19 +437,14 @@ public sealed partial class DownloadViewModel : ObservableObject
 
             if (videoInfo is null)
             {
-                videoInfo = await MetadataService.FetchVideoInfoAsync(item.Url, ytDlpPath);
+                videoInfo = await MetadataService.FetchVideoInfoAsync(item.Url, ytDlpPath, ct);
                 if (videoInfo is not null)
                     lock (_cacheLock)
                         _videoInfoCache[item.Url] = videoInfo;
             }
 
-            if (videoInfo is null)
-            {
-                // yt-dlp couldn't fetch info — attempt direct download
-                RunOnUi(() => item.State = DownloadState.Queued);
-                await StartDirectDownloadAsync(item);
-                return;
-            }
+            ct.ThrowIfCancellationRequested();
+            if (videoInfo is null) throw new InvalidOperationException("yt-dlp returned no video metadata.");
 
             // Set up the TCS before raising the event to avoid a race
             var tcs = new TaskCompletionSource<FormatSelection?>(
@@ -450,6 +454,7 @@ public sealed partial class DownloadViewModel : ObservableObject
 
             RunOnUi(() =>
             {
+                if (ct.IsCancellationRequested) return;
                 item.VideoInfo = videoInfo;
                 item.Title     = videoInfo.Title;
 
@@ -463,7 +468,7 @@ public sealed partial class DownloadViewModel : ObservableObject
                 FormatPickerRequested?.Invoke(item); // MainWindow shows ContentDialog
             });
 
-            var selection = await tcs.Task;
+            var selection = await tcs.Task.WaitAsync(ct);
 
             if (selection is null)
             {
@@ -473,6 +478,7 @@ public sealed partial class DownloadViewModel : ObservableObject
                     item.PropertyChanged -= OnItemPropertyChanged;
                     Downloads.Remove(item);
                 });
+                await _persistence.DeleteAsync(item.Id);
                 return;
             }
 
@@ -508,10 +514,10 @@ public sealed partial class DownloadViewModel : ObservableObject
                     aFmt?.Label, aFmt?.Container,
                     selection.FilenameOverride, keepBoth: true, knownTitle: item.Title);
                 var vActual = !vTemplate.Contains('%')
-                    ? await MetadataService.GetActualFilenameAsync(ytDlpPath2!, selection.VideoFormatId!, vTemplate, item.Url)
+                    ? await MetadataService.GetActualFilenameAsync(ytDlpPath2!, selection.VideoFormatId!, vTemplate, item.Url, ct)
                     : null;
                 var aActual = !aTemplate.Contains('%')
-                    ? await MetadataService.GetActualFilenameAsync(ytDlpPath2!, selection.AudioFormatId!, aTemplate, item.Url)
+                    ? await MetadataService.GetActualFilenameAsync(ytDlpPath2!, selection.AudioFormatId!, aTemplate, item.Url, ct)
                     : null;
                 var paths = new List<string>();
                 if (vActual is not null) paths.Add(vActual);
@@ -530,7 +536,7 @@ public sealed partial class DownloadViewModel : ObservableObject
                     ? $"{selection.VideoFormatId}+{selection.AudioFormatId}"
                     : (hasVid ? selection.VideoFormatId! : selection.AudioFormatId!);
                 if (!template.Contains('%'))
-                    predictedFilePath = await MetadataService.GetActualFilenameAsync(ytDlpPath2!, quality, template, item.Url);
+                    predictedFilePath = await MetadataService.GetActualFilenameAsync(ytDlpPath2!, quality, template, item.Url, ct);
                 else
                     predictedFilePath = null;
             }
@@ -538,6 +544,7 @@ public sealed partial class DownloadViewModel : ObservableObject
             // ── Apply to item on UI thread (awaited — guarantees completion) ─────────
             await RunOnUiAsync(() =>
             {
+                ct.ThrowIfCancellationRequested();
                 item.SelectedVideoFormatId = selection.VideoFormatId;
                 item.SelectedAudioFormatId = selection.AudioFormatId;
                 item.MergeToMp4            = selection.MergeToMp4;
@@ -549,20 +556,25 @@ public sealed partial class DownloadViewModel : ObservableObject
                 item.State = DownloadState.Queued;
             });
 
-            // ── Persist immediately — paths are now set ──────────────────────────────
+            // ── Persist immediately - paths are now set ──────────────────────────────
             await _persistence.SaveAsync(item);
-            // Download stays Queued — user starts it manually via StartCommand.
+            // Download stays Queued - user starts it manually via StartCommand.
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex)
         {
             RunOnUi(() =>
             {
+                if (ct.IsCancellationRequested) return;
                 item.State        = DownloadState.Failed;
                 item.ErrorMessage = ex.Message;
             });
         }
         finally
         {
+            lock (_processLock)
+                if (_metadataCancellation.TryGetValue(item.Id, out var current) && ReferenceEquals(current, cancellation))
+                    _metadataCancellation.Remove(item.Id);
             RefreshStatusSummary();
         }
     }
@@ -774,97 +786,84 @@ public sealed partial class DownloadViewModel : ObservableObject
         return RunYtDlpAsync(item, ytDlpPath, args);
     }
 
-    private async Task RunYtDlpAsync(DownloadItemModel item, string ytDlpPath, string[] args)
+    private Task RunYtDlpAsync(DownloadItemModel item, string ytDlpPath, string[] args)
+        => RunYtDlpSequenceAsync(item, ytDlpPath, [args]);
+
+    private async Task RunYtDlpSequenceAsync(DownloadItemModel item, string ytDlpPath, string[][] phases)
     {
+        var attempt = await _ytDlpRuns.BeginAsync(item.Id);
+        if (!_ytDlpRuns.IsCurrent(item.Id, attempt)) return;
         RunOnUi(() => { item.State = DownloadState.Active; item.ErrorMessage = null; });
-
-        string? capturedPath = null;
-
+        var paths = new List<string>();
         try
         {
-            var (proc, exitTask) = DownloadEngine.StartYtDlpProcess(ytDlpPath, args,
-                onOutput: line =>
+            for (int phase = 0; phase < phases.Length; phase++)
+            {
+                var phaseIndex = phase;
+                var output = new YtDlpOutput();
+                Process proc;
+                Task<int> exitTask;
+                lock (_processLock)
                 {
-                    if (line.Contains("[download] Destination:"))
+                    if (!_ytDlpRuns.IsCurrent(item.Id, attempt)) return;
+                    (proc, exitTask) = DownloadEngine.StartYtDlpProcess(ytDlpPath, phases[phase], line =>
                     {
-                        var idx = line.IndexOf("[download] Destination: ", StringComparison.Ordinal);
-                        if (idx >= 0)
+                        if (!_ytDlpRuns.IsCurrent(item.Id, attempt)) return;
+                        output.Observe(line);
+                        var update = DownloadEngine.ParseYtDlpProgress(line);
+                        if (update is not null) RunOnUi(() =>
                         {
-                            capturedPath = line[(idx + 24)..].Trim();
-                            var path = capturedPath; // snapshot for closure
-                            // Only update if not already set by ConfirmFormat (??= keeps pre-computed path).
-                            RunOnUi(() =>
-                            {
-                                item.FilePath ??= path;
-                                item.Title    ??= Path.GetFileNameWithoutExtension(path);
-                            });
-                            _persistence.SaveAsync(item);
-                        }
-                    }
-                    // Merger overwrites the stream path with the final merged output path.
-                    if (line.Contains("[Merger] Merging formats into"))
-                    {
-                        var s = line.IndexOf('"');
-                        var e = line.LastIndexOf('"');
-                        if (s >= 0 && e > s)
-                        {
-                            capturedPath = line[(s + 1)..e].Trim();
-                            var path = capturedPath;
-                            RunOnUi(() => item.FilePath = path);
-                        }
-                    }
-                    var update = DownloadEngine.ParseYtDlpProgress(line);
-                    if (update is not null)
-                        RunOnUi(() =>
-                        {
-                            item.Progress         = update.Progress;
+                            if (!_ytDlpRuns.IsCurrent(item.Id, attempt)) return;
+                            item.Progress = (phaseIndex + update.Progress) / phases.Length;
                             item.SpeedBytesPerSec = update.SpeedBytesPerSec;
-                            item.EtaSeconds       = update.EtaSeconds;
+                            item.EtaSeconds = update.EtaSeconds;
                         });
-                });
-
-            lock (_processLock) _activeProcesses[item.Id] = proc;
-
-            // Await here — exitTask resolves only after WaitForExit(), which guarantees
-            // that capturedPath has been set from the output before we read it below.
-            var exitCode = await exitTask;
-
-            if (item.State == DownloadState.Paused) return; // killed intentionally
-
-            // Await the UI update so SaveAsync captures the final Completed state.
+                    });
+                    _activeProcesses[item.Id] = proc;
+                    _ytDlpRuns.Track(item.Id, attempt, exitTask);
+                }
+                int exitCode;
+                try { exitCode = await exitTask; }
+                finally
+                {
+                    lock (_processLock)
+                        if (_activeProcesses.TryGetValue(item.Id, out var current) && ReferenceEquals(current, proc))
+                            _activeProcesses.Remove(item.Id);
+                    proc.Dispose();
+                }
+                if (!_ytDlpRuns.IsCurrent(item.Id, attempt)) return;
+                if (exitCode != 0) throw new InvalidOperationException(output.Error(exitCode));
+                if (output.FinalPath is not string finalPath || !File.Exists(finalPath))
+                    throw new InvalidOperationException("yt-dlp did not produce a completed output file. " + output.Error(exitCode));
+                paths.Add(finalPath);
+            }
             await RunOnUiAsync(() =>
             {
-                if (exitCode == 0)
-                {
-                    item.State            = DownloadState.Completed;
-                    item.Progress         = 1.0;
-                    // Keep pre-computed path if yt-dlp emitted no Destination line
-                    if (capturedPath is not null) item.FilePath = capturedPath;
-                    item.SpeedBytesPerSec = 0;
-                    item.EtaSeconds       = null;
-                }
-                else
-                {
-                    item.State        = DownloadState.Failed;
-                    item.ErrorMessage = $"yt-dlp exited with code {exitCode}";
-                }
+                if (!_ytDlpRuns.IsCurrent(item.Id, attempt)) return;
+                item.State = DownloadState.Completed;
+                item.Progress = 1;
+                item.FilePath = paths[0];
+                if (paths.Count > 1) item.FilePaths = paths;
+                item.Title ??= Path.GetFileNameWithoutExtension(paths[0]);
+                item.SpeedBytesPerSec = 0;
+                item.EtaSeconds = null;
             });
-            // Persist Completed/Failed state + final FilePath.
-            await _persistence.SaveAsync(item);
+            if (_ytDlpRuns.IsCurrent(item.Id, attempt)) await _persistence.SaveAsync(item);
         }
         catch (Exception ex)
         {
-            RunOnUi(() => { item.State = DownloadState.Failed; item.ErrorMessage = ex.Message; });
+            await RunOnUiAsync(() =>
+            {
+                if (!_ytDlpRuns.IsCurrent(item.Id, attempt)) return;
+                item.State = DownloadState.Failed;
+                item.ErrorMessage = ex.Message;
+                item.SpeedBytesPerSec = 0;
+                item.EtaSeconds = null;
+            });
+            if (_ytDlpRuns.IsCurrent(item.Id, attempt)) await _persistence.SaveAsync(item);
         }
-        finally
-        {
-            RefreshStatusSummary();
-        }
+        finally { RefreshStatusSummary(); }
     }
-
-    // ─────────────────────────────────────────────────────
-    // yt-dlp: separate video + audio (no merge)
-    // ─────────────────────────────────────────────────────
 
     private Task StartYtDlpSeparateAsync(DownloadItemModel item, string ytDlpPath, string outputDir)
     {
@@ -897,110 +896,10 @@ public sealed partial class DownloadViewModel : ObservableObject
     }
 
     /// <summary>Runs yt-dlp twice: video first (progress 0-50%), then audio (50-100%).</summary>
-    private async Task RunYtDlpDualAsync(
+    private Task RunYtDlpDualAsync(
         DownloadItemModel item, string ytDlpPath, string outputDir,
         string[] videoArgs, string[] audioArgs)
-    {
-        RunOnUi(() => { item.State = DownloadState.Active; item.ErrorMessage = null; });
-
-        int phase = 0; // 0=video, 1=audio
-        string? capturedVideoPath = null;
-        string? capturedAudioPath = null;
-
-        void OnOutput(string line)
-        {
-            if (line.Contains("[download] Destination:"))
-            {
-                var idx = line.IndexOf("[download] Destination: ", StringComparison.Ordinal);
-                if (idx >= 0)
-                {
-                    var dest = line[(idx + 24)..].Trim();
-                    if (phase == 0) capturedVideoPath = dest;
-                    else            capturedAudioPath = dest;
-                    // Update title lazily. Do NOT touch FilePath — FilePaths handles separate mode.
-                    RunOnUi(() =>
-                    {
-                        item.Title ??= Path.GetFileNameWithoutExtension(dest);
-                    });
-                }
-            }
-            var update = DownloadEngine.ParseYtDlpProgress(line);
-            if (update is not null)
-            {
-                var adj = phase == 0 ? update.Progress * 0.5 : 0.5 + update.Progress * 0.5;
-                RunOnUi(() =>
-                {
-                    item.Progress         = adj;
-                    item.SpeedBytesPerSec = update.SpeedBytesPerSec;
-                    item.EtaSeconds       = update.EtaSeconds;
-                });
-            }
-            _persistence.SaveAsync(item);
-        }
-
-        try
-        {
-            // ── Phase 0: video ──────────────────────────────────────────────
-            var (videoProc, videoExitTask) = DownloadEngine.StartYtDlpProcess(ytDlpPath, videoArgs, OnOutput);
-            lock (_processLock) _activeProcesses[item.Id] = videoProc;
-
-            var videoExit = await videoExitTask;
-
-            if (item.State == DownloadState.Paused) return;
-
-            if (videoExit != 0)
-            {
-                RunOnUi(() =>
-                {
-                    item.State        = DownloadState.Failed;
-                    item.ErrorMessage = $"yt-dlp (video) exited with code {videoExit}";
-                });
-                return;
-            }
-
-            // ── Phase 1: audio ──────────────────────────────────────────────
-            phase = 1;
-            var (audioProc, audioExitTask) = DownloadEngine.StartYtDlpProcess(ytDlpPath, audioArgs, OnOutput);
-            lock (_processLock) _activeProcesses[item.Id] = audioProc;
-
-            var audioExit = await audioExitTask;
-
-            if (item.State == DownloadState.Paused) return;
-
-            await RunOnUiAsync(() =>
-            {
-                if (audioExit == 0)
-                {
-                    item.State            = DownloadState.Completed;
-                    item.Progress         = 1.0;
-                    item.SpeedBytesPerSec = 0;
-                    item.EtaSeconds       = null;
-                    // Only fall back to captured paths if ConfirmFormat didn't pre-compute them.
-                    var paths = new List<string>();
-                    if (!string.IsNullOrEmpty(capturedVideoPath)) paths.Add(capturedVideoPath);
-                    if (!string.IsNullOrEmpty(capturedAudioPath)) paths.Add(capturedAudioPath);
-                    if (paths.Count > 0 && item.FilePaths.Count == 0)
-                        item.FilePaths = paths;
-                    else if (paths.Count == 0)
-                        item.FilePath ??= outputDir;
-                }
-                else
-                {
-                    item.State        = DownloadState.Failed;
-                    item.ErrorMessage = $"yt-dlp (audio) exited with code {audioExit}";
-                }
-            });
-            await _persistence.SaveAsync(item);
-        }
-        catch (Exception ex)
-        {
-            RunOnUi(() => { item.State = DownloadState.Failed; item.ErrorMessage = ex.Message; });
-        }
-        finally
-        {
-            RefreshStatusSummary();
-        }
-    }
+        => RunYtDlpSequenceAsync(item, ytDlpPath, [videoArgs, audioArgs]);
 
     // Naming helpers live in DownloadNamingService (testable static class).
 
@@ -1138,9 +1037,11 @@ public sealed partial class DownloadViewModel : ObservableObject
 
     private void KillProcess(Guid id)
     {
+        _ytDlpRuns.Cancel(id);
         Process? proc;
         lock (_processLock)
         {
+            if (_metadataCancellation.TryGetValue(id, out var cancellation)) cancellation.Cancel();
             _activeProcesses.TryGetValue(id, out proc);
             _activeProcesses.Remove(id);
         }
@@ -1347,7 +1248,10 @@ public sealed partial class DownloadViewModel : ObservableObject
 
                     // Re-use existing selections; never re-show the format picker on retry.
                     if (item!.Type == DownloadType.YtDlp)
-                        _ = StartYtDlpDownloadAsync(item!);
+                    {
+                        if (item.VideoInfo is null) _ = FetchYtDlpMetadataAsync(item);
+                        else _ = StartYtDlpDownloadAsync(item);
+                    }
                     else
                         _ = RestartAfterPauseAsync(item!);
                 });
@@ -1597,7 +1501,11 @@ public sealed partial class DownloadViewModel : ObservableObject
             return Task.CompletedTask;
         }
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        _dispatcher.TryEnqueue(() => { action(); tcs.SetResult(); });
+        if (!_dispatcher.TryEnqueue(() =>
+        {
+            try { action(); tcs.SetResult(); }
+            catch (Exception ex) { tcs.SetException(ex); }
+        })) tcs.SetException(new InvalidOperationException("The application window is closing."));
         return tcs.Task;
     }
 }

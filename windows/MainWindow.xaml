@@ -424,6 +424,9 @@
                                         Text="{x:Bind StatusText, Mode=OneWay}"
                                         Style="{StaticResource CaptionTextBlockStyle}"
                                         Foreground="{x:Bind StatusBrush, Mode=OneWay}"
+                                        TextWrapping="Wrap"
+                                        MaxLines="6"
+                                        ToolTipService.ToolTip="{x:Bind StatusText, Mode=OneWay}"
                                         TextTrimming="CharacterEllipsis"
                                         VerticalAlignment="Center" />
 
