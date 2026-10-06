@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Net;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 
@@ -15,11 +16,16 @@ public sealed class DependencyUpdater
     private readonly IDependencyProbe _probe;
     private readonly DependencyUpdateStore _store;
     private readonly TimeSpan _operationTimeout;
+    private readonly Architecture _processArchitecture;
+    public const string UnsupportedArchitectureMessage = "Automatic dependency updates currently support Windows x64. Existing downloads remain available; update tools through an app release for this architecture.";
+    public static bool SupportsAutomaticUpdates(Architecture architecture) => architecture == Architecture.X64;
+
     public DependencyUpdater(HttpClient http, IDependencyProbe probe, DependencyUpdateStore store,
-        TimeSpan? operationTimeout = null)
+        TimeSpan? operationTimeout = null, Architecture? processArchitecture = null)
     {
         _http = http; _probe = probe; _store = store;
         _operationTimeout = operationTimeout ?? TimeSpan.FromMinutes(4);
+        _processArchitecture = processArchitecture ?? RuntimeInformation.ProcessArchitecture;
         if (_operationTimeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(operationTimeout));
     }
 
@@ -33,6 +39,14 @@ public sealed class DependencyUpdater
     public async Task<DependencyUpdateResult> CheckAndStageAsync(IReadOnlyDictionary<string, string> current,
         CancellationToken ct = default, Action<DependencyUpdateResult>? localStatus = null)
     {
+        // Release assets and the PE probe below are x64-only. An unsupported updater
+        // architecture does not make the app's existing native tools incompatible.
+        if (!SupportsAutomaticUpdates(_processArchitecture))
+        {
+            var skipped = new DependencyUpdateResult(UnsupportedArchitectureMessage);
+            localStatus?.Invoke(skipped);
+            return skipped;
+        }
         var necessary = false;
         string? staging = null;
         try

@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -10,6 +11,30 @@ namespace AnyDownloader.Windows.Tests;
 
 public class DependencyUpdaterTests
 {
+    [Theory]
+    [InlineData(Architecture.X86, false)]
+    [InlineData(Architecture.X86, true)]
+    [InlineData(Architecture.Arm64, false)]
+    [InlineData(Architecture.Arm64, true)]
+    public async Task NonX64UpdaterSkipsProbesNetworkAndStateWithoutBlockingDownloads(Architecture architecture, bool ownsSession)
+    {
+        using var f = new Fixture { ProcessArchitecture = architecture };
+        if (!ownsSession) f.Store.Dispose();
+        var pending = Path.Combine(f.Root, "pending.json");
+        File.WriteAllText(pending, "{"); // even pending state must not be read/quarantined
+        string? blockReason = "previous check";
+        var result = await f.Check(localStatus: local => blockReason = local.Necessary ? local.Message : null);
+        Assert.False(result.Necessary);
+        Assert.False(result.RestartRequired);
+        Assert.Contains("Existing downloads remain available", result.Message);
+        Assert.Null(blockReason);
+        Assert.Equal(0, f.Probe.VersionCalls);
+        Assert.Empty(f.Probe.Validated);
+        Assert.False(f.NetworkStarted.Task.IsCompleted);
+        Assert.Equal("{", File.ReadAllText(pending));
+        Assert.Empty(Directory.GetFiles(f.Root, "*.invalid-*"));
+    }
+
     [Fact]
     public async Task StartupWaitsBrieflyForExclusiveSessionHandoffWithoutBypassingIt()
     {
@@ -23,6 +48,23 @@ public class DependencyUpdaterTests
         Assert.True(await waiting.WaitAsync(TimeSpan.FromSeconds(3)));
         Assert.True(next.OwnsSession);
         next.Dispose();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SecondaryX64SessionStillChecksLocalCompatibilityWithoutNetwork(bool missing)
+    {
+        using var f = new Fixture();
+        f.Store.Dispose();
+        if (missing) File.Delete(f.Paths["deno.exe"]);
+        DependencyUpdateResult? local = null;
+        var result = await f.Check(localStatus: status => local = status);
+        Assert.Equal(missing, result.Necessary);
+        Assert.Equal(missing, local!.Necessary);
+        Assert.True(f.Probe.VersionCalls > 0);
+        Assert.False(result.RestartRequired);
+        Assert.False(f.NetworkStarted.Task.IsCompleted);
     }
 
     [Theory]
@@ -326,10 +368,14 @@ public class DependencyUpdaterTests
 
     private sealed class FakeProbe : IDependencyProbe
     {
+        public int VersionCalls { get; private set; }
         public List<string> Validated { get; } = new();
         public Func<bool> RejectNew { get; set; } = () => false;
         public Task<string> VersionAsync(DependencySpec spec, string path, CancellationToken ct)
-            => Task.FromResult(File.ReadAllText(path));
+        {
+            VersionCalls++;
+            return Task.FromResult(File.ReadAllText(path));
+        }
         public Task ValidateAsync(DependencySpec spec, string path, string version, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
@@ -346,6 +392,7 @@ public class DependencyUpdaterTests
         public string LatestYt = "2026.08.20";
         public string Fault = "";
         public TimeSpan? OperationTimeout;
+        public Architecture ProcessArchitecture = Architecture.X64;
         public TaskCompletionSource? NetworkGate;
         public TaskCompletionSource NetworkStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string Root { get; } = Path.Combine(Path.GetTempPath(), "AnyDL_update_test_" + Guid.NewGuid().ToString("N"));
@@ -368,7 +415,7 @@ public class DependencyUpdaterTests
         }
         public void ReopenStore() { Store.Dispose(); Store = new(Root, Probe); Assert.True(Store.AcquireSession()); }
         public Task<DependencyUpdateResult> Check(CancellationToken ct = default, Action<DependencyUpdateResult>? localStatus = null)
-            => new DependencyUpdater(Http, Probe, Store, OperationTimeout).CheckAndStageAsync(Paths, ct, localStatus);
+            => new DependencyUpdater(Http, Probe, Store, OperationTimeout, ProcessArchitecture).CheckAndStageAsync(Paths, ct, localStatus);
         public byte[] Payload(DependencySpec spec)
         {
             if (!spec.Zip) return Encoding.UTF8.GetBytes(LatestYt);

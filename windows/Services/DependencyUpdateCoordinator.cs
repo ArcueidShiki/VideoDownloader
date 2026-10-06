@@ -17,8 +17,9 @@ public static class DependencyUpdateCoordinator
         get => Volatile.Read(ref _videoBlockReason);
         private set => Volatile.Write(ref _videoBlockReason, value);
     }
-    public static bool CanRollback { get { try { return Store.OwnsSession && Store.Active?.Generation is not null; } catch { return false; } } }
-    public static bool Ready { get { try { return Store.Pending is not null; } catch { return false; } } }
+    private static bool SupportsAutomaticUpdates => DependencyUpdater.SupportsAutomaticUpdates(RuntimeInformation.ProcessArchitecture);
+    public static bool CanRollback { get { try { return SupportsAutomaticUpdates && Store.OwnsSession && Store.Active?.Generation is not null; } catch { return false; } } }
+    public static bool Ready { get { try { return SupportsAutomaticUpdates && Store.Pending is not null; } catch { return false; } } }
     public static string? ResolveActive(string exe) => _activePaths.GetValueOrDefault(exe);
 
     // Run before creating a window or allowing any downloader process to start.
@@ -26,9 +27,10 @@ public static class DependencyUpdateCoordinator
     {
         try
         {
-            if (RuntimeInformation.ProcessArchitecture != Architecture.X64)
+            if (!SupportsAutomaticUpdates)
             {
-                StartupMessage = "Automatic dependency updates currently support Windows x64. Use an app release for this architecture.";
+                VideoBlockReason = null;
+                StartupMessage = DependencyUpdater.UnsupportedArchitectureMessage;
                 return;
             }
             if (OtherAppIsRunning())

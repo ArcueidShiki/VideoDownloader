@@ -145,6 +145,45 @@ public class DownloadLifecycleTests
     }
 
     [Fact]
+    public async Task PartialTreeKillFailureFallsBackToRootAndRetainsHandleUntilDrain()
+    {
+        var psi = new ProcessStartInfo(Cmd) { UseShellExecute = false, CreateNoWindow = true };
+        psi.ArgumentList.Add("/d"); psi.ArgumentList.Add("/c"); psi.ArgumentList.Add("pause >nul");
+        psi.RedirectStandardInput = true; // keep pause waiting without a visible console
+        using var process = Process.Start(psi)!;
+        var rootCalls = 0;
+        var registry = new DownloadProcessRegistry(
+            _ => throw new AggregateException(new System.ComponentModel.Win32Exception(5)),
+            p => { rootCalls++; p.Kill(); });
+        var id = Guid.NewGuid();
+        registry.Track(id, process);
+        try
+        {
+            registry.Kill(id);
+            Assert.Equal(1, rootCalls);
+            Assert.Equal(1, registry.Count);
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            await registry.WaitAndReleaseAsync(id, process, Task.FromResult(process.ExitCode));
+            Assert.Equal(0, registry.Count);
+        }
+        finally { try { if (!process.HasExited) process.Kill(); } catch (InvalidOperationException) { } }
+    }
+
+    [Fact]
+    public async Task TreeKillDoesNotSwallowUnrelatedAggregatedFailures()
+    {
+        using var process = Process.GetCurrentProcess();
+        var rootCalls = 0;
+        var failure = new AggregateException(new InvalidDataException("unrelated"));
+        var registry = new DownloadProcessRegistry(_ => throw failure, _ => rootCalls++);
+        var id = Guid.NewGuid();
+        registry.Track(id, process);
+        Assert.Same(failure, Assert.Throws<AggregateException>(() => registry.Kill(id)));
+        Assert.Equal(0, rootCalls);
+        await registry.WaitAndReleaseAsync(id, process, Task.FromResult(0));
+    }
+
+    [Fact]
     public async Task ExitedProcessFromAnEnumerationSnapshotDoesNotBlockRestart()
     {
         var psi = new ProcessStartInfo(Cmd) { UseShellExecute = false, CreateNoWindow = true };

@@ -45,8 +45,8 @@
     <EnableMsixTooling Condition="'$(Configuration)' == 'Release'">true</EnableMsixTooling>
 
     <!-- Package identity (used by MSIX) -->
-    <ApplicationDisplayVersion>1.1.1</ApplicationDisplayVersion>
-    <Version>1.1.1</Version>
+    <ApplicationDisplayVersion>1.1.2</ApplicationDisplayVersion>
+    <Version>1.1.2</Version>
     <ApplicationVersion>1</ApplicationVersion>
     <StartupObject>AnyDownloader.Windows.Program</StartupObject>
   </PropertyGroup>

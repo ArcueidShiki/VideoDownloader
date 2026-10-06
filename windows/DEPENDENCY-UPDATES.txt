@@ -18,7 +18,9 @@ yt-dlp and Deno are isolated CLI executables. FFmpeg/ffprobe, aria2, WinUI/.NET,
 and the application itself are deliberately not replaced by this mechanism:
 they require a reviewed full app installer, publisher-signed for production.
 The local test installer does not add a signing key or change Windows security.
-Non-x64 architectures require an app release; no emulation asset is guessed.
+On x86/ARM64, only automatic dependency updating is skipped: existing native tools
+and downloads remain available without the x64 PE probe or a required-repair gate.
+Tool updates for those architectures require an app release; no emulation asset is guessed.
 
 Trust and integrity:
 - Metadata comes from api.github.com/repos/yt-dlp/yt-dlp/releases/latest and
