@@ -41,6 +41,10 @@
     <Compile Include="..\Services\DownloadEngine.cs" />
     <Compile Include="..\Services\YtDlpIntegration.cs" />
     <Compile Include="..\Services\YtDlpRunTracker.cs" />
+    <Compile Include="..\Services\DependencyUpdatePolicy.cs" />
+    <Compile Include="..\Services\DependencyUpdateStore.cs" />
+    <Compile Include="..\Services\DependencyUpdater.cs" />
+    <Compile Include="..\Services\DependencyUpdateCoordinator.cs" />
     <Compile Include="..\Services\AppSettings.cs" />
     <Compile Include="..\Services\BinaryResolver.cs" />
     <Compile Include="..\Services\ToolsInstaller.cs" />

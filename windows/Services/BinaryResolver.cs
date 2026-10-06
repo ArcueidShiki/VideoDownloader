@@ -60,6 +60,7 @@ public static class BinaryResolver
 
     private static string? Resolve(string exe)
     {
+        if (DependencyUpdateCoordinator.ResolveActive(exe) is string active && File.Exists(active)) return active;
         var candidates = new List<string>
         {
             // 1. Bundled tools next to the .exe / MSIX package

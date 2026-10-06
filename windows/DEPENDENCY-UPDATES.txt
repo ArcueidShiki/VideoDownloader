@@ -1,0 +1,66 @@
+Startup dependency updates (Windows x64)
+
+Policy selected by the user: only necessary updates require restart before use.
+Every startup checks yt-dlp and Deno against their official GitHub stable release
+APIs. Ordinary newer versions are staged automatically; existing downloads and
+new jobs can continue. The banner offers Restart to install. Closing/reopening
+normally also installs a staged update. Check again retries an offline check.
+
+Necessary means a local dependency is missing or fails concrete validation:
+Windows x64 executable, runnable reported version, Deno >=2.3.0 within major 2,
+or yt-dlp lacks CLI options the app uses. Only affected yt-dlp video jobs are
+blocked, with an explanation; existing jobs are not killed. HTTP/torrent jobs
+remain available. A newer release alone does not establish incompatibility or a
+security emergency. There is no invented remote security/compatibility manifest.
+Unknown failures/offline/rate limits keep the last working tools usable.
+
+yt-dlp and Deno are isolated CLI executables. FFmpeg/ffprobe, aria2, WinUI/.NET,
+and the application itself are deliberately not replaced by this mechanism:
+they require a reviewed full app installer, publisher-signed for production.
+The local test installer does not add a signing key or change Windows security.
+Non-x64 architectures require an app release; no emulation asset is guessed.
+
+Trust and integrity:
+- Metadata comes from api.github.com/repos/yt-dlp/yt-dlp/releases/latest and
+  api.github.com/repos/denoland/deno/releases/latest over normal certificate-
+  validated HTTPS. Only stable releases and exact repository/tag/asset paths
+  are accepted. Redirects are restricted to GitHub's HTTPS download hosts.
+- GitHub's release asset SHA-256 digest and size are mandatory. Digest mismatch,
+  missing digest, unexpected metadata/archive or truncated/oversized content
+  reject the candidate before executing it. ZIP extraction allows only deno.exe.
+- This trusts the official repository's release channel and TLS. A hash served
+  alongside a binary proves transfer integrity, not independent publisher
+  identity. This app does not claim Authenticode/attestation verification or
+  invent a signer allowlist. Release-account compromise remains a limitation.
+- After verification, PE architecture, --version, and yt-dlp --help checks run
+  with a timeout. Actual site behavior cannot be proven by these smoke tests.
+  Arbitrary --remote-components/scripts are not enabled.
+
+State and restart:
+%LOCALAPPDATA%/AnyDownloader/dependency-updates contains immutable generations,
+pending.json, active.json, rejected.json and an exclusive session.lock. Staging
+never overwrites bundled/active tools. The whole verified tool pair is selected
+by one atomic pointer write at next startup, before any download starts. Other
+app instances or active jobs prevent switching/restart. The new app process waits
+for the old PID to exit before taking the session lock. Partial staging from a
+terminated process is cleaned on the next exclusive startup.
+
+The preceding generation and original bundled tools are retained. A failed
+validation/installation keeps the old pointer; a startup that dies before its
+window marks activation healthy causes automatic rollback on the next launch.
+Restore previous version stages a manual rollback for restart if a site fails
+despite a successful smoke test. Rejected/rolled-back versions are not immediately
+restaged. Retained generations are not auto-pruned in this first implementation.
+Settings, downloads.db and media files are outside this state and are untouched.
+
+Tests: DependencyUpdaterTests covers no update, optional/necessary updates,
+offline/malformed metadata, origin/redirect restriction, digest failure,
+incomplete/interrupted/cancelled downloads, architecture/archive validation,
+active jobs/other instances, startup activation, interrupted pointer replacement,
+changed staged files, failed trials, manual rollback and retained generations.
+ANYDOWNLOADER_LIVE_UPDATES=1 plus ANYDOWNLOADER_LIVE_YTDLP opts into the real
+official-release/probe test using an isolated temporary update store.
+
+Official references (checked 2026-10-06):
+https://github.com/yt-dlp/yt-dlp/wiki/EJS
+https://docs.github.com/en/rest/releases/assets

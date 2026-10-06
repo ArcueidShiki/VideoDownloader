@@ -45,8 +45,8 @@
     <EnableMsixTooling Condition="'$(Configuration)' == 'Release'">true</EnableMsixTooling>
 
     <!-- Package identity (used by MSIX) -->
-    <ApplicationDisplayVersion>1.0.1</ApplicationDisplayVersion>
-    <Version>1.0.1</Version>
+    <ApplicationDisplayVersion>1.1.0</ApplicationDisplayVersion>
+    <Version>1.1.0</Version>
     <ApplicationVersion>1</ApplicationVersion>
     <StartupObject>AnyDownloader.Windows.Program</StartupObject>
   </PropertyGroup>
@@ -71,6 +71,7 @@
        BinaryResolver at runtime.
        ══════════════════════════════════════════════════════════════ -->
   <ItemGroup>
+    <Content Include="DEPENDENCY-UPDATES.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="tools\yt-dlp.exe" Condition="Exists('tools\yt-dlp.exe')" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="tools\ffmpeg.exe" Condition="Exists('tools\ffmpeg.exe')" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="tools\ffprobe.exe" Condition="Exists('tools\ffprobe.exe')" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

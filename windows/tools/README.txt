@@ -1,4 +1,4 @@
-Windows x64 local test package - 1.0.1
+Windows x64 bundled tools - verified 2026-10-06 (app 1.1.0)
 
 Bundled dependencies (executables are build artifacts, excluded from git):
 yt-dlp 2026.08.19: https://github.com/yt-dlp/yt-dlp/releases/tag/2026.08.19

@@ -100,6 +100,16 @@ public sealed partial class DownloadViewModel : ObservableObject
     private readonly object _processLock = new();
     private readonly YtDlpRunTracker _ytDlpRuns = new();
     private readonly Dictionary<Guid, CancellationTokenSource> _metadataCancellation = new();
+    public bool HasActiveOperations
+    {
+        get
+        {
+            lock (_processLock)
+                return _activeProcesses.Count > 0 || _metadataCancellation.Count > 0 ||
+                    Downloads.Any(d => d.State is DownloadState.Active or DownloadState.FetchingInfo or
+                        DownloadState.SelectingFormat or DownloadState.SelectingFiles);
+        }
+    }
 
     // ─────────────────────────────────────────────────────
     // Persistence
@@ -408,6 +418,7 @@ public sealed partial class DownloadViewModel : ObservableObject
 
     private async Task FetchYtDlpMetadataAsync(DownloadItemModel item)
     {
+        if (BlockIncompatibleVideoDependency(item)) return;
         using var cancellation = new CancellationTokenSource();
         lock (_processLock)
         {
@@ -791,6 +802,7 @@ public sealed partial class DownloadViewModel : ObservableObject
 
     private async Task RunYtDlpSequenceAsync(DownloadItemModel item, string ytDlpPath, string[][] phases)
     {
+        if (BlockIncompatibleVideoDependency(item)) return;
         var attempt = await _ytDlpRuns.BeginAsync(item.Id);
         if (!_ytDlpRuns.IsCurrent(item.Id, attempt)) return;
         RunOnUi(() => { item.State = DownloadState.Active; item.ErrorMessage = null; });
@@ -1052,6 +1064,13 @@ public sealed partial class DownloadViewModel : ObservableObject
             try { proc.Kill(entireProcessTree: true); }
             catch { try { proc.Kill(); } catch { } }
         }
+    }
+
+    private bool BlockIncompatibleVideoDependency(DownloadItemModel item)
+    {
+        if (DependencyUpdateCoordinator.VideoBlockReason is not string reason) return false;
+        RunOnUi(() => { item.State = DownloadState.Failed; item.ErrorMessage = reason; });
+        return true;
     }
 
     // ─────────────────────────────────────────────────────
