@@ -49,6 +49,39 @@ test('real yt-dlp: CC0 download, cancel/retry, one-time delivery, missing binary
       }
     });
 
+    await t.test('multi-video HTML metadata and download both select the first CC0 clip', async () => {
+      assert.ok(sample, 'public sample must have downloaded');
+      const requested = [];
+      const server = createServer((req, res) => {
+        requested.push(req.url);
+        if (req.url === '/post') {
+          res.writeHead(200, { 'content-type': 'text/html' });
+          res.end('<html><title>Two clips</title><video src="/first.mp4"></video><video src="/second.mp4"></video></html>');
+        } else {
+          res.writeHead(200, { 'content-type': 'video/mp4', 'content-length': sample.length });
+          res.end(req.method === 'HEAD' ? undefined : sample);
+        }
+      });
+      server.listen(0, '127.0.0.1'); await once(server, 'listening');
+      const url = `http://127.0.0.1:${server.address().port}/post`;
+      const session = { id: crypto.randomUUID(), state: 'downloading' };
+      let artifact;
+      try {
+        const info = await fetchVideoInfo(url, { timeoutMs: 30_000 });
+        assert.ok(info.formats.some(f => f.url.endsWith('/first.mp4')));
+        assert.equal(info.entries, undefined);
+        const manager = { getSession: () => session, notifyState() {}, notifyProgress() {},
+          notifyCompleted: (_, path) => { artifact = path; } };
+        await startSessionDownload(session, { url, formatStr: 'best', container: 'mp4' }, manager);
+        assert.deepEqual(readFileSync(artifact), sample);
+        assert.ok(!requested.includes('/second.mp4'), 'the second clip must never be fetched');
+      } finally {
+        if (session.process) session.process.kill();
+        if (session.outputDir) rmSync(session.outputDir, { recursive: true, force: true });
+        server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
+      }
+    });
+
     await t.test('cancel and retry on the same session delivers only the new artifact', async () => {
       assert.ok(sample, 'public sample must have downloaded');
       const server = createServer((req, res) => {

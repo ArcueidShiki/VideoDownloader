@@ -96,9 +96,10 @@ public sealed partial class DownloadViewModel : ObservableObject
     // Process map (id → running process)
     // ─────────────────────────────────────────────────────
 
-    private readonly Dictionary<Guid, Process> _activeProcesses = new();
+    private readonly DownloadProcessRegistry _activeProcesses = new();
     private readonly object _processLock = new();
     private readonly YtDlpRunTracker _ytDlpRuns = new();
+    private readonly YtDlpRunTracker _aria2Runs = new();
     private readonly Dictionary<Guid, CancellationTokenSource> _metadataCancellation = new();
     public bool HasActiveOperations
     {
@@ -493,6 +494,20 @@ public sealed partial class DownloadViewModel : ObservableObject
                 return;
             }
 
+            // Persist the user's choice before the optional filename network probe.
+            // A failed probe must not turn Retry into a default-format/default-folder download.
+            await RunOnUiAsync(() =>
+            {
+                ct.ThrowIfCancellationRequested();
+                item.SelectedVideoFormatId = selection.VideoFormatId;
+                item.SelectedAudioFormatId = selection.AudioFormatId;
+                item.MergeToMp4 = selection.MergeToMp4;
+                item.FilenameOverride = selection.FilenameOverride;
+                item.ItemOutputDirectory = string.IsNullOrEmpty(selection.OutputDirectory)
+                    ? item.ItemOutputDirectory ?? OutputDirectory : selection.OutputDirectory;
+            });
+            await _persistence.SaveAsync(item);
+
             // ── Resolve exact output paths via yt-dlp --print filename --skip-download ─
             // DownloadNamingService builds the --output TEMPLATE (same args as the real
             // download call).  yt-dlp resolves that template with its own sanitisation
@@ -556,12 +571,6 @@ public sealed partial class DownloadViewModel : ObservableObject
             await RunOnUiAsync(() =>
             {
                 ct.ThrowIfCancellationRequested();
-                item.SelectedVideoFormatId = selection.VideoFormatId;
-                item.SelectedAudioFormatId = selection.AudioFormatId;
-                item.MergeToMp4            = selection.MergeToMp4;
-                item.FilenameOverride      = selection.FilenameOverride;
-                if (!string.IsNullOrEmpty(selection.OutputDirectory))
-                    item.ItemOutputDirectory = selection.OutputDirectory;
                 if (predictedFilePath  is not null) item.FilePath  = predictedFilePath;
                 if (predictedFilePaths is not null) item.FilePaths = predictedFilePaths;
                 item.State = DownloadState.Queued;
@@ -836,18 +845,10 @@ public sealed partial class DownloadViewModel : ObservableObject
                             item.EtaSeconds = update.EtaSeconds;
                         });
                     });
-                    _activeProcesses[item.Id] = proc;
+                    _activeProcesses.Track(item.Id, proc);
                     _ytDlpRuns.Track(item.Id, attempt, exitTask);
                 }
-                int exitCode;
-                try { exitCode = await exitTask; }
-                finally
-                {
-                    lock (_processLock)
-                        if (_activeProcesses.TryGetValue(item.Id, out var current) && ReferenceEquals(current, proc))
-                            _activeProcesses.Remove(item.Id);
-                    proc.Dispose();
-                }
+                var exitCode = await _activeProcesses.WaitAndReleaseAsync(item.Id, proc, exitTask);
                 if (!_ytDlpRuns.IsCurrent(item.Id, attempt)) return;
                 if (exitCode != 0) throw new InvalidOperationException(output.Error(exitCode));
                 if (output.FinalPath is not string finalPath || !File.Exists(finalPath))
@@ -941,7 +942,6 @@ public sealed partial class DownloadViewModel : ObservableObject
             : null;
 
         var args = DownloadEngine.BuildAria2cArgs(item.Url, outputDir: outputDir, selectedFiles: selectedFiles);
-        RunOnUi(() => { item.State = DownloadState.Active; item.ErrorMessage = null; });
         return RunAria2cAsync(item, aria2cPath, args);
     }
 
@@ -956,17 +956,30 @@ public sealed partial class DownloadViewModel : ObservableObject
 
         var outputDir = item.ItemOutputDirectory ?? OutputDirectory;
         var args      = DownloadEngine.BuildAria2cArgs(item.Url, outputDir: outputDir);
-        RunOnUi(() => { item.State = DownloadState.Active; item.ErrorMessage = null; });
         return RunAria2cAsync(item, aria2cPath, args);
     }
 
     private async Task RunAria2cAsync(DownloadItemModel item, string aria2cPath, string[] args)
     {
+        var attempt = await _aria2Runs.BeginAsync(item.Id);
+        if (!_aria2Runs.IsCurrent(item.Id, attempt)) return;
         try
         {
-            var (proc, exitTask) = DownloadEngine.StartAria2cProcess(aria2cPath, args,
+            await RunOnUiAsync(() =>
+            {
+                if (!_aria2Runs.IsCurrent(item.Id, attempt)) return;
+                item.State = DownloadState.Active;
+                item.ErrorMessage = null;
+            });
+            Process proc;
+            Task<int> exitTask;
+            lock (_processLock)
+            {
+                if (!_aria2Runs.IsCurrent(item.Id, attempt)) return;
+                (proc, exitTask) = DownloadEngine.StartAria2cProcess(aria2cPath, args,
                 onOutput: line =>
                 {
+                    if (!_aria2Runs.IsCurrent(item.Id, attempt)) return;
                     // aria2c prefixes lines with "MM/DD HH:MM:SS NOTICE " so we
                     // cannot use StartsWith — use Contains and locate the marker.
                     const string completeMarker = "Download complete:";
@@ -977,6 +990,7 @@ public sealed partial class DownloadViewModel : ObservableObject
                         if (!string.IsNullOrEmpty(path))
                             RunOnUi(() =>
                             {
+                                if (!_aria2Runs.IsCurrent(item.Id, attempt)) return;
                                 item.FilePath ??= path;
                                 item.Title    ??= Path.GetFileNameWithoutExtension(path);
                             });
@@ -986,20 +1000,21 @@ public sealed partial class DownloadViewModel : ObservableObject
                     if (update is not null)
                         RunOnUi(() =>
                         {
+                            if (!_aria2Runs.IsCurrent(item.Id, attempt)) return;
                             item.Progress         = update.Progress;
                             item.SpeedBytesPerSec = update.SpeedBytesPerSec;
                             item.EtaSeconds       = update.EtaSeconds;
                         });
                 });
-
-            lock (_processLock) _activeProcesses[item.Id] = proc;
-
-            var exitCode = await exitTask;
-
-            if (item.State == DownloadState.Paused) return;
-
-            RunOnUi(() =>
+                _activeProcesses.Track(item.Id, proc);
+                _aria2Runs.Track(item.Id, attempt, exitTask);
+            }
+            var exitCode = await _activeProcesses.WaitAndReleaseAsync(item.Id, proc, exitTask);
+            await RunOnUiAsync(() =>
             {
+                if (!_aria2Runs.IsCurrent(item.Id, attempt)) return;
+                item.SpeedBytesPerSec = 0;
+                item.EtaSeconds = null;
                 if (exitCode == 0)
                 {
                     item.State            = DownloadState.Completed;
@@ -1020,7 +1035,14 @@ public sealed partial class DownloadViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            RunOnUi(() => { item.State = DownloadState.Failed; item.ErrorMessage = ex.Message; });
+            await RunOnUiAsync(() =>
+            {
+                if (!_aria2Runs.IsCurrent(item.Id, attempt)) return;
+                item.State = DownloadState.Failed;
+                item.ErrorMessage = ex.Message;
+                item.SpeedBytesPerSec = 0;
+                item.EtaSeconds = null;
+            });
         }
         finally
         {
@@ -1054,20 +1076,12 @@ public sealed partial class DownloadViewModel : ObservableObject
 
     private void KillProcess(Guid id)
     {
-        _ytDlpRuns.Cancel(id);
-        Process? proc;
         lock (_processLock)
         {
+            _ytDlpRuns.Cancel(id);
+            _aria2Runs.Cancel(id);
             if (_metadataCancellation.TryGetValue(id, out var cancellation)) cancellation.Cancel();
-            _activeProcesses.TryGetValue(id, out proc);
-            _activeProcesses.Remove(id);
-        }
-        if (proc is not null && !proc.HasExited)
-        {
-            // Kill the entire process tree so ffmpeg/other child processes spawned
-            // by yt-dlp also stop (proc.Kill() only kills the root process on Windows).
-            try { proc.Kill(entireProcessTree: true); }
-            catch { try { proc.Kill(); } catch { } }
+            _activeProcesses.Kill(id);
         }
     }
 
@@ -1273,7 +1287,8 @@ public sealed partial class DownloadViewModel : ObservableObject
                     // Re-use existing selections; never re-show the format picker on retry.
                     if (item!.Type == DownloadType.YtDlp)
                     {
-                        if (item.VideoInfo is null) _ = FetchYtDlpMetadataAsync(item);
+                        if (string.IsNullOrEmpty(item.SelectedVideoFormatId) && string.IsNullOrEmpty(item.SelectedAudioFormatId))
+                            _ = FetchYtDlpMetadataAsync(item);
                         else _ = StartYtDlpDownloadAsync(item);
                     }
                     else
@@ -1348,7 +1363,7 @@ public sealed partial class DownloadViewModel : ObservableObject
         {
             // If we have a selected format, resume the yt-dlp download directly.
             // yt-dlp's --continue flag will resume from the .part file on disk.
-            if (!string.IsNullOrEmpty(item.SelectedVideoFormatId))
+            if (!string.IsNullOrEmpty(item.SelectedVideoFormatId) || !string.IsNullOrEmpty(item.SelectedAudioFormatId))
                 await StartYtDlpDownloadAsync(item);
             else
                 await FetchYtDlpMetadataAsync(item); // re-fetch for fresh format selection

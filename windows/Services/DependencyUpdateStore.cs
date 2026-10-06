@@ -16,17 +16,29 @@ public sealed class DependencyUpdateStore : IDisposable
     private readonly IDependencyProbe _probe;
     private FileStream? _session;
     public bool OwnsSession => _session is not null;
+    public string? StateWarning { get; private set; }
     public DependencyActivation? Active => Read<DependencyActivation>("active.json");
     public PendingDependencies? Pending => Read<PendingDependencies>("pending.json");
 
     public DependencyUpdateStore(string root, IDependencyProbe probe) { Root = Path.GetFullPath(root); _probe = probe; }
 
-    public bool AcquireSession()
+    public bool AcquireSession(TimeSpan retryFor = default)
     {
         Directory.CreateDirectory(Root);
-        try { _session ??= new FileStream(Path.Combine(Root, "session.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
-        catch (IOException) { return false; }
-        return true;
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        while (true)
+        {
+            try
+            {
+                _session ??= new FileStream(Path.Combine(Root, "session.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                return true;
+            }
+            catch (IOException)
+            {
+                if (elapsed.Elapsed >= retryFor) return false;
+                Thread.Sleep(50); // bounded startup handoff; never relax exclusive sharing
+            }
+        }
     }
 
     public string GenerationPath(string id)
@@ -104,6 +116,18 @@ public sealed class DependencyUpdateStore : IDisposable
         if (!OwnsSession || hasActiveJobs) return "Dependencies will switch after all app instances and downloads have stopped.";
         CleanupInterruptedStaging();
         var active = Active;
+        if (active is null)
+        {
+            // Only restore a recorded healthy generation after validating it again.
+            // If no usable record survives, retain the bundled install.
+            var lastHealthy = Read<DependencyActivation>("last-healthy.json");
+            if (lastHealthy is not null || StateWarning is not null)
+            {
+                await RestoreAsync(lastHealthy is { Healthy: true } ? lastHealthy.Generation : null, ct);
+                StateWarning ??= "Recovered missing dependency state from the last healthy install.";
+                active = Active;
+            }
+        }
         // A crash between pointer replacement and window creation leaves an unhealthy trial.
         if (active is { Healthy: false })
         {
@@ -125,7 +149,7 @@ public sealed class DependencyUpdateStore : IDisposable
                     return "Dependency validation failed; restored the previous version. " + ex.Message;
                 }
             }
-            return null;
+            return StateWarning;
         }
         try
         {
@@ -164,17 +188,38 @@ public sealed class DependencyUpdateStore : IDisposable
             catch (Exception ex) when (ex is not OperationCanceledException) { previous = null; }
         }
         Write("active.json", new DependencyActivation(previous, null, true));
+        Write("last-healthy.json", new DependencyActivation(previous, null, true));
     }
 
     public void MarkHealthy()
     {
-        if (OwnsSession && Active is { Healthy: false } active) Write("active.json", active with { Healthy = true });
+        if (OwnsSession && Active is { } active)
+        {
+            var healthy = active with { Healthy = true };
+            Write("last-healthy.json", healthy);
+            if (!active.Healthy) Write("active.json", healthy);
+        }
     }
 
     private T? Read<T>(string name) where T : class
     {
         var path = Path.Combine(Root, name);
-        return File.Exists(path) ? JsonSerializer.Deserialize<T>(File.ReadAllText(path)) : null;
+        if (!File.Exists(path)) return null;
+        try
+        {
+            return JsonSerializer.Deserialize<T>(File.ReadAllText(path))
+                ?? throw new JsonException("Empty dependency state.");
+        }
+        catch (JsonException)
+        {
+            StateWarning = $"Ignored corrupt dependency state ({name}); retained a verified or bundled install.";
+            if (OwnsSession)
+            {
+                try { File.Move(path, path + ".invalid-" + Guid.NewGuid().ToString("N")); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            }
+            return null;
+        }
     }
 
     private void Write<T>(string name, T value)

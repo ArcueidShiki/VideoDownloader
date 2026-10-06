@@ -38,7 +38,7 @@ Trust and integrity:
 
 State and restart:
 %LOCALAPPDATA%/AnyDownloader/dependency-updates contains immutable generations,
-pending.json, active.json, rejected.json and an exclusive session.lock. Staging
+pending.json, active.json, last-healthy.json, rejected.json and an exclusive session.lock. Staging
 never overwrites bundled/active tools. The whole verified tool pair is selected
 by one atomic pointer write at next startup, before any download starts. Other
 app instances or active jobs prevent switching/restart. The new app process waits
@@ -52,6 +52,12 @@ Restore previous version stages a manual rollback for restart if a site fails
 despite a successful smoke test. Rejected/rolled-back versions are not immediately
 restaged. Retained generations are not auto-pruned in this first implementation.
 Settings, downloads.db and media files are outside this state and are untouched.
+Malformed update pointers are quarantined. A last-healthy pointer is revalidated
+before recovery; otherwise the bundled install remains available. Local missing
+or incompatible tools gate video work as soon as detected, before network I/O.
+Each release metadata/asset operation has a four-minute deadline covering headers,
+redirects and the response body. Timeout/cancellation removes partial staging and
+returns a retryable result without replacing the installed tools.
 
 Tests: DependencyUpdaterTests covers no update, optional/necessary updates,
 offline/malformed metadata, origin/redirect restriction, digest failure,

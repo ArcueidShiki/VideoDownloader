@@ -11,6 +11,104 @@ namespace AnyDownloader.Windows.Tests;
 public class DependencyUpdaterTests
 {
     [Fact]
+    public async Task StartupWaitsBrieflyForExclusiveSessionHandoffWithoutBypassingIt()
+    {
+        using var f = new Fixture();
+        using var next = new DependencyUpdateStore(f.Root, f.Probe);
+        Assert.False(next.AcquireSession());
+        var waiting = Task.Run(() => next.AcquireSession(TimeSpan.FromSeconds(2)));
+        await Task.Delay(100);
+        Assert.False(waiting.IsCompleted);
+        f.Store.Dispose();
+        Assert.True(await waiting.WaitAsync(TimeSpan.FromSeconds(3)));
+        Assert.True(next.OwnsSession);
+        next.Dispose();
+    }
+
+    [Theory]
+    [InlineData("{")]
+    [InlineData("null")]
+    [InlineData("[]")]
+    public async Task CorruptActiveStateCannotCrashLoadedAndRestoresValidatedHealthyGeneration(string corrupt)
+    {
+        using var f = new Fixture();
+        await f.Check();
+        await f.Store.ActivateAtStartupAsync(false);
+        f.Store.MarkHealthy();
+        var healthy = f.Store.Active!.Generation;
+        File.WriteAllText(Path.Combine(f.Root, "active.json"), corrupt);
+        f.Store.MarkHealthy(); // Loaded can run after Initialize fell back to bundled tools.
+        f.ReopenStore();
+        await f.Store.ActivateAtStartupAsync(false);
+        f.Store.MarkHealthy();
+        Assert.Equal(healthy, f.Store.Active!.Generation);
+        Assert.Equal(f.LatestYt, File.ReadAllText(f.Store.ActivePaths()["yt-dlp.exe"]));
+        Assert.NotEmpty(Directory.GetFiles(f.Root, "active.json.invalid-*"));
+    }
+
+    [Fact]
+    public async Task CorruptStateWithoutHealthyRecordFallsBackOfflineWithoutChangingBundledFiles()
+    {
+        using var f = new Fixture { Fault = "offline" };
+        File.WriteAllText(Path.Combine(f.Root, "active.json"), "{");
+        await f.Store.ActivateAtStartupAsync(false);
+        f.Store.MarkHealthy();
+        var result = await f.Check();
+        Assert.False(result.Necessary);
+        Assert.Empty(f.Store.ActivePaths());
+        Assert.Equal(Fixture.OldYt, File.ReadAllText(f.Paths["yt-dlp.exe"]));
+    }
+
+    [Fact]
+    public async Task CorruptPendingStateRetainsCurrentHealthyGeneration()
+    {
+        using var f = new Fixture();
+        await f.Check();
+        await f.Store.ActivateAtStartupAsync(false);
+        f.Store.MarkHealthy();
+        var healthy = f.Store.Active!.Generation;
+        File.WriteAllText(Path.Combine(f.Root, "pending.json"), "{");
+        await f.Store.ActivateAtStartupAsync(false);
+        Assert.Equal(healthy, f.Store.Active!.Generation);
+        Assert.Null(f.Store.Pending);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LocalCompatibilityIsPublishedBeforeNetworkCompletes(bool missing)
+    {
+        using var f = new Fixture { NetworkGate = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        if (missing) File.Delete(f.Paths["deno.exe"]);
+        using var cancel = new CancellationTokenSource();
+        DependencyUpdateResult? local = null;
+        var check = f.Check(cancel.Token, result => local = result);
+        await f.NetworkStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(check.IsCompleted);
+        Assert.NotNull(local);
+        Assert.Equal(missing, local.Necessary);
+        cancel.Cancel();
+        var final = await check.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(missing, final.Necessary);
+    }
+
+    [Theory]
+    [InlineData("metadata-stall")]
+    [InlineData("download-stall")]
+    public async Task StalledResponseBodyTimesOutCleansStagingAndAllowsRetry(string fault)
+    {
+        using var f = new Fixture { Fault = fault, OperationTimeout = TimeSpan.FromMilliseconds(100) };
+        var result = await f.Check().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Contains("timed out", result.Message);
+        Assert.False(result.RestartRequired);
+        Assert.False(result.Necessary);
+        Assert.Null(f.Store.Pending);
+        Assert.True(!Directory.Exists(Path.Combine(f.Root, "staging")) || !Directory.EnumerateFileSystemEntries(Path.Combine(f.Root, "staging")).Any());
+        f.Fault = "";
+        Assert.True((await f.Check()).RestartRequired);
+    }
+
+    [Fact]
     public async Task NoUpdateDoesNotStageOrRequireRestart()
     {
         using var f = new Fixture();
@@ -247,6 +345,9 @@ public class DependencyUpdaterTests
         public const string OldYt = "2026.08.19";
         public string LatestYt = "2026.08.20";
         public string Fault = "";
+        public TimeSpan? OperationTimeout;
+        public TaskCompletionSource? NetworkGate;
+        public TaskCompletionSource NetworkStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string Root { get; } = Path.Combine(Path.GetTempPath(), "AnyDL_update_test_" + Guid.NewGuid().ToString("N"));
         public Dictionary<string, string> Paths { get; } = new();
         public FakeProbe Probe { get; } = new();
@@ -266,8 +367,8 @@ public class DependencyUpdaterTests
             Http = new(new Handler(this));
         }
         public void ReopenStore() { Store.Dispose(); Store = new(Root, Probe); Assert.True(Store.AcquireSession()); }
-        public Task<DependencyUpdateResult> Check(CancellationToken ct = default)
-            => new DependencyUpdater(Http, Probe, Store).CheckAndStageAsync(Paths, ct);
+        public Task<DependencyUpdateResult> Check(CancellationToken ct = default, Action<DependencyUpdateResult>? localStatus = null)
+            => new DependencyUpdater(Http, Probe, Store, OperationTimeout).CheckAndStageAsync(Paths, ct, localStatus);
         public byte[] Payload(DependencySpec spec)
         {
             if (!spec.Zip) return Encoding.UTF8.GetBytes(LatestYt);
@@ -293,23 +394,38 @@ public class DependencyUpdaterTests
         public void Dispose() { Http.Dispose(); Store.Dispose(); Directory.Delete(Root, true); }
         private sealed class Handler(Fixture fixture) : HttpMessageHandler
         {
-            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+            protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
             {
                 ct.ThrowIfCancellationRequested();
+                fixture.NetworkStarted.TrySetResult();
+                if (fixture.NetworkGate is not null) await fixture.NetworkGate.Task.WaitAsync(ct);
                 if (fixture.Fault == "offline") throw new HttpRequestException("Offline.");
                 var spec = request.RequestUri!.AbsolutePath.Contains("yt-dlp") ? DependencySpec.YtDlp : DependencySpec.Deno;
+                if ((fixture.Fault == "metadata-stall" && request.RequestUri.Host == "api.github.com") ||
+                    (fixture.Fault == "download-stall" && request.RequestUri.Host != "api.github.com"))
+                    return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new StalledBody()) };
                 if (request.RequestUri.Host == "api.github.com")
-                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(fixture.Fault == "malformed" ? "{}" : fixture.Metadata(spec)) });
+                    return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(fixture.Fault == "malformed" ? "{}" : fixture.Metadata(spec)) };
                 if (fixture.Fault == "redirect")
                 {
                     var redirect = new HttpResponseMessage(HttpStatusCode.Found);
                     redirect.Headers.Location = new Uri("https://attacker.example/tool.exe");
-                    return Task.FromResult(redirect);
+                    return redirect;
                 }
                 if (fixture.Fault == "interrupted") throw new IOException("Connection interrupted during download.");
                 var bytes = fixture.Payload(spec);
                 if (fixture.Fault == "truncated") bytes = bytes[..3];
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) });
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) };
+            }
+        }
+        private sealed class StalledBody : MemoryStream
+        {
+            private bool _sentPrefix;
+            public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
+            {
+                if (!_sentPrefix) { _sentPrefix = true; buffer.Span[0] = 42; return 1; }
+                await Task.Delay(Timeout.Infinite, ct);
+                return 0;
             }
         }
     }

@@ -14,8 +14,14 @@ public sealed class DependencyUpdater
     private readonly HttpClient _http;
     private readonly IDependencyProbe _probe;
     private readonly DependencyUpdateStore _store;
-    public DependencyUpdater(HttpClient http, IDependencyProbe probe, DependencyUpdateStore store)
-        { _http = http; _probe = probe; _store = store; }
+    private readonly TimeSpan _operationTimeout;
+    public DependencyUpdater(HttpClient http, IDependencyProbe probe, DependencyUpdateStore store,
+        TimeSpan? operationTimeout = null)
+    {
+        _http = http; _probe = probe; _store = store;
+        _operationTimeout = operationTimeout ?? TimeSpan.FromMinutes(4);
+        if (_operationTimeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(operationTimeout));
+    }
 
     public static HttpClient CreateHttpClient()
     {
@@ -25,15 +31,12 @@ public sealed class DependencyUpdater
     }
 
     public async Task<DependencyUpdateResult> CheckAndStageAsync(IReadOnlyDictionary<string, string> current,
-        CancellationToken ct = default)
+        CancellationToken ct = default, Action<DependencyUpdateResult>? localStatus = null)
     {
-        if (!_store.OwnsSession) return new("Another AnyDownloader window manages updates. Current dependencies remain available.");
         var necessary = false;
         string? staging = null;
         try
         {
-            if (_store.Pending is { } pending)
-                return new("Verified dependencies are ready. Restart to install them.", true, pending.Required);
             var versions = new Dictionary<string, string>();
             var repair = new HashSet<string>();
             foreach (var spec in DependencySpec.All)
@@ -50,8 +53,15 @@ public sealed class DependencyUpdater
                 {
                     repair.Add(spec.Exe);
                     necessary = true;
+                    // Publish a demonstrated local failure before any release network request.
+                    localStatus?.Invoke(new($"{spec.Exe} is missing or incompatible. Repair it before video downloads.", false, true));
                 }
             }
+            if (!necessary) localStatus?.Invoke(new("Installed video dependencies passed local checks."));
+            if (!_store.OwnsSession)
+                return new("Another AnyDownloader window manages updates.", false, necessary);
+            if (_store.Pending is { } pending)
+                return new("Verified dependencies are ready. Restart to install them.", true, necessary || pending.Required);
             var releases = new List<DependencyRelease>();
             var rejected = false;
             foreach (var spec in DependencySpec.All)
@@ -130,19 +140,33 @@ public sealed class DependencyUpdater
 
     private async Task<byte[]> GetBytesAsync(Uri uri, long limit, CancellationToken ct)
     {
-        using var response = await GetAsync(uri, ct);
-        using var buffer = new MemoryStream();
-        await CopyBoundedAsync(await response.Content.ReadAsStreamAsync(ct), buffer, limit, ct);
-        return buffer.ToArray();
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(_operationTimeout);
+        try
+        {
+            using var response = await GetAsync(uri, timeout.Token);
+            using var buffer = new MemoryStream();
+            await CopyBoundedAsync(await response.Content.ReadAsStreamAsync(timeout.Token), buffer, limit, timeout.Token);
+            return buffer.ToArray();
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        { throw new TimeoutException("Release metadata request timed out. Try again later."); }
     }
 
     private async Task DownloadAsync(DependencyRelease release, string path, CancellationToken ct)
     {
-        using var response = await GetAsync(new Uri(release.Url), ct);
-        await using var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        await CopyBoundedAsync(await response.Content.ReadAsStreamAsync(ct), output, release.Size, ct);
-        if (output.Length != release.Size) throw new InvalidDataException("Dependency download was incomplete.");
-        await output.FlushAsync(ct);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(_operationTimeout);
+        try
+        {
+            using var response = await GetAsync(new Uri(release.Url), timeout.Token);
+            await using var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            await CopyBoundedAsync(await response.Content.ReadAsStreamAsync(timeout.Token), output, release.Size, timeout.Token);
+            if (output.Length != release.Size) throw new InvalidDataException("Dependency download was incomplete.");
+            await output.FlushAsync(timeout.Token);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        { throw new TimeoutException("Dependency download timed out. Try again later."); }
     }
 
     private async Task<HttpResponseMessage> GetAsync(Uri uri, CancellationToken ct)

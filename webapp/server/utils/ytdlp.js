@@ -24,10 +24,39 @@ export function findYtDlp() {
 
 export function commonArgs() {
   return [
-    '--ignore-config', '--no-playlist', '--encoding', 'utf-8',
+    '--ignore-config', '--no-playlist', '--playlist-items', '1', '--encoding', 'utf-8',
     // Node is already running this server, but yt-dlp only enables Deno by default.
     '--js-runtimes', `node:${process.execPath}`,
   ];
+}
+
+// Some multi-video extractors return an entries envelope even with --no-playlist.
+// The same --playlist-items 1 policy is used for both metadata and downloads.
+export function normalizeVideoInfo(raw) {
+  for (let depth = 0; depth < 16; depth++) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new Error('yt-dlp returned invalid video metadata or an unavailable first video.');
+    }
+    if (Object.hasOwn(raw, 'entries')) {
+      if (!Array.isArray(raw.entries) || raw.entries.length === 0) {
+        throw new Error('yt-dlp returned no playable first video in this collection.');
+      }
+      raw = raw.entries[0];
+      continue;
+    }
+    if (raw._type === 'playlist' || raw._type === 'multi_video') {
+      throw new Error('yt-dlp returned a video collection without entries.');
+    }
+    if (Object.hasOwn(raw, 'formats') && (!Array.isArray(raw.formats) ||
+        raw.formats.some(f => !f || typeof f !== 'object' || Array.isArray(f)))) {
+      throw new Error('yt-dlp returned invalid video formats.');
+    }
+    if (!raw.id && !raw.title && !raw.url && !Array.isArray(raw.formats)) {
+      throw new Error('yt-dlp returned incomplete video metadata.');
+    }
+    return raw;
+  }
+  throw new Error('yt-dlp returned excessively nested video collections.');
 }
 
 export function progressArgs() {

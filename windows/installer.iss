@@ -13,7 +13,7 @@
 #endif
 
 #define AppName      "AnyDownloader"
-#define AppVersion   "1.1.0"
+#define AppVersion   "1.1.1"
 #define AppPublisher "AnyDownloader"
 #define AppExeName   "AnyDownloader.Windows.exe"
 #ifndef PublishDir

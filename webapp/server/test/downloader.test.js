@@ -6,7 +6,7 @@ import { syncBuiltinESMExports } from 'node:module';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { join } from 'node:path';
-import { fetchVideoInfo, startSessionDownload } from '../downloader.js';
+import { fetchVideoInfo, extractFormats, startSessionDownload } from '../downloader.js';
 
 // Model real child-process events, including pipe chunks that split UTF-8/lines.
 function child(t) {
@@ -57,6 +57,49 @@ test('metadata retains the actual error and dependency warning', async t => {
   fake.close(1);
   await assert.rejects(result, /JavaScript.*\n.*Requested format/s);
 });
+
+test('metadata unwraps the first video in nested envelopes and download selects the same entry', async t => {
+  const fake = child(t);
+  const first = { id: 'first', title: 'First clip', formats: [
+    { format_id: 'clip-one', vcodec: 'avc1', acodec: 'aac', height: 720, ext: 'mp4' },
+  ] };
+  const second = { id: 'second', title: 'Second clip', formats: [] };
+  const result = fetchVideoInfo('https://example.com/post');
+  const infoArgs = fake.spawn.mock.calls[0].arguments[1];
+  fake.proc.stdout.write(JSON.stringify({ _type: 'multi_video', entries: [
+    { _type: 'playlist', entries: [first, second] }, second,
+  ] }) + '\n');
+  fake.close();
+  const info = await result;
+  assert.equal(info.id, 'first');
+  assert.equal(extractFormats(info).videoFormats[0].formatId, 'clip-one');
+  assert.equal(infoArgs[infoArgs.indexOf('--playlist-items') + 1], '1');
+  const d = download(t);
+  const downloadArgs = d.spawn.mock.calls.at(-1).arguments[1];
+  assert.equal(downloadArgs[downloadArgs.indexOf('--playlist-items') + 1], '1');
+  d.session.state = 'idle'; d.close(null, 'SIGTERM'); await d.promise;
+});
+
+test('metadata accepts a one-entry envelope', async t => {
+  const fake = child(t);
+  const result = fetchVideoInfo('https://example.com/post');
+  fake.proc.stdout.write(JSON.stringify({ entries: [{ id: 'only', title: 'Only video', formats: [] }] }) + '\n');
+  fake.close();
+  assert.equal((await result).id, 'only');
+});
+
+for (const [name, raw] of Object.entries({
+  empty: { entries: [] }, unavailable: { entries: [null, { title: 'do not silently choose another clip' }] },
+  malformedEntries: { entries: 'wrong' }, scalar: 12, incomplete: {}, missingEntries: { _type: 'playlist' },
+  malformedFormats: { title: 'bad', formats: [null] },
+})) {
+  test(`metadata rejects ${name} with a useful error`, async t => {
+    const fake = child(t);
+    const result = fetchVideoInfo('https://example.com/post');
+    fake.proc.stdout.write(JSON.stringify(raw) + '\n'); fake.close();
+    await assert.rejects(result, /yt-dlp returned (invalid|no playable|incomplete|a video collection|no JSON)/);
+  });
+}
 
 test('metadata timeout terminates the child and reports timeout', async t => {
   const fake = child(t);

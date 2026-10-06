@@ -14,6 +14,10 @@ when a specific installation must be used. The backend explicitly enables
 its own Node executable via --js-runtimes. Restart the backend after changing
 PATH or YTDLP_PATH. The backend ignores external yt-dlp configuration files;
 download options come from the application.
+Multi-video/playlist envelopes use their first entry. Both metadata and download
+commands select --playlist-items 1; an unavailable first entry returns an error
+instead of silently downloading another clip. Nested envelopes are bounded and
+validated before exposing formats.
 
 Checks from this directory
   npm run test:ytdlp

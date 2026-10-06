@@ -82,7 +82,10 @@ public sealed partial class MainWindow : Window
         _checkingDependencies = true;
         CheckDependenciesButton.IsEnabled = false;
         DependencyInfoBar.Message = "Checking installed versions and official releases...";
-        var result = await DependencyUpdateCoordinator.CheckAsync(_updateCancellation.Token);
+        DependencyUpdateResult result;
+        try { result = await DependencyUpdateCoordinator.CheckAsync(_updateCancellation.Token); }
+        catch (OperationCanceledException) { result = new("Update check was interrupted; existing dependencies were kept."); }
+        catch (Exception ex) { result = new("Update check could not finish; existing dependencies were kept. " + ex.Message); }
         DispatcherQueue.TryEnqueue(() =>
         {
             _checkingDependencies = false;

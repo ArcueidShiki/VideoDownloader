@@ -9,7 +9,7 @@ import { createInterface } from 'readline';
 import os from 'os';
 import {
   enrichedEnv, findYtDlp, commonArgs, progressArgs, parseProgress,
-  FILE_PREFIX, POSTPROCESS_PREFIX, spawnError, failureMessage,
+  FILE_PREFIX, POSTPROCESS_PREFIX, spawnError, failureMessage, normalizeVideoInfo,
 } from './utils/ytdlp.js';
 
 // ---------------------------------------------------------------------------
@@ -116,8 +116,11 @@ export function fetchVideoInfo(url, opts = {}) {
       if (code !== 0) return rejectOnce(new Error(failureMessage(stderr, code, signal)));
       const line = stdout.split('\n').find(l => l.trim().startsWith('{'));
       if (!line) return rejectOnce(new Error('yt-dlp returned no JSON output'));
-      try { resolveOnce(JSON.parse(line)); }
-      catch { rejectOnce(new Error('Could not parse yt-dlp JSON output')); }
+      let raw;
+      try { raw = JSON.parse(line); }
+      catch { return rejectOnce(new Error('Could not parse yt-dlp JSON output')); }
+      try { resolveOnce(normalizeVideoInfo(raw)); }
+      catch (error) { rejectOnce(error); }
     });
   });
 }
@@ -143,6 +146,7 @@ export function fetchVideoInfo(url, opts = {}) {
  * }}
  */
 export function extractFormats(raw) {
+  raw = normalizeVideoInfo(raw);
   const all = Array.isArray(raw.formats) ? raw.formats : [];
 
   // ── Video formats ─────────────────────────────────────────────────────────
