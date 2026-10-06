@@ -1,16 +1,16 @@
 # ── VideoDownloader — Backend image ──────────────────────────────────────────
-# Node.js + yt-dlp (standalone binary) + ffmpeg
+# Node.js + yt-dlp (Unix launcher with bundled EJS scripts) + Python + ffmpeg
 # Serves the Express API on port 3001; static frontend is served by nginx.
 
-FROM node:20-alpine
+FROM node:22-alpine
 
 # System dependencies:
 #   ffmpeg  — media muxing / transcoding during yt-dlp post-processing
 #   curl    — used to check yt-dlp update endpoint in health scripts
 #   ca-certificates — TLS root certs for HTTPS downloads
-RUN apk add --no-cache ffmpeg curl ca-certificates
+RUN apk add --no-cache python3 ffmpeg curl ca-certificates
 
-# yt-dlp standalone binary (no Python runtime needed — smaller image)
+# The platform-independent yt-dlp asset is a Python zipapp, not a standalone ELF.
 RUN curl -fsSL \
       https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
       -o /usr/local/bin/yt-dlp \

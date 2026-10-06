@@ -14,7 +14,7 @@ import cors from 'cors';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { existsSync, rmSync } from 'fs';
-import { basename } from 'path';
+import { basename, dirname } from 'path';
 import { SessionManager } from './sessionManager.js';
 import { fetchVideoInfo, extractFormats, startSessionDownload } from './downloader.js';
 import { validateUrl } from './utils/validateUrl.js';
@@ -253,7 +253,7 @@ app.get('/api/file/:token',
   res.download(entry.filePath, filename, (err) => {
     if (err && !res.headersSent) console.error('[file] download error:', err.message);
     // Delete the output directory regardless of success/failure
-    const dir = entry.filePath.substring(0, entry.filePath.lastIndexOf('/'));
+    const dir = dirname(entry.filePath);
     try { rmSync(dir, { recursive: true, force: true }); } catch {}
   });
 });

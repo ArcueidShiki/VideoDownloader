@@ -11,6 +11,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { rmSync, existsSync } from 'fs';
+import { basename } from 'path';
 
 const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT ?? '20', 10);
 
@@ -159,7 +160,7 @@ export class SessionManager {
     const session = this.#sessions.get(sessionId);
     if (!session || session.state !== 'downloading') return;
 
-    const filename = filePath.split('/').pop();
+    const filename = basename(filePath);
     const token = uuidv4();
     this.#tokens.set(token, { sessionId, filePath, filename });
 

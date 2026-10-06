@@ -3,9 +3,14 @@
  */
 
 import { spawn } from 'child_process';
-import { mkdirSync, existsSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { mkdirSync, mkdtempSync, rmSync, statSync } from 'fs';
+import { join, resolve as resolvePath, relative, isAbsolute, sep } from 'path';
+import { createInterface } from 'readline';
 import os from 'os';
+import {
+  enrichedEnv, findYtDlp, commonArgs, progressArgs, parseProgress,
+  FILE_PREFIX, POSTPROCESS_PREFIX, spawnError, failureMessage,
+} from './utils/ytdlp.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -42,52 +47,11 @@ export function classifyURL(url) {
 }
 
 // ---------------------------------------------------------------------------
-// Environment helpers
-// ---------------------------------------------------------------------------
-
-function enrichedEnv() {
-  const env = { ...process.env };
-  const brewBin = existsSync('/opt/homebrew/bin') ? '/opt/homebrew/bin' : '/usr/local/bin';
-  const current = env.PATH ?? '/usr/bin:/bin:/usr/sbin:/sbin';
-  if (!current.includes(brewBin)) env.PATH = `${brewBin}:/usr/local/bin:${current}`;
-  return env;
-}
-
-function findYtDlp() {
-  for (const p of ['/opt/homebrew/bin/yt-dlp', '/usr/local/bin/yt-dlp', '/usr/bin/yt-dlp']) {
-    if (existsSync(p)) return p;
-  }
-  return null;
-}
-
-// ---------------------------------------------------------------------------
-// Progress parsing
-// ---------------------------------------------------------------------------
-
-const PROGRESS_RE = /\[download\]\s+([\d.]+)%.*?at\s+([\d.]+)(KiB|MiB|GiB)\/s.*?ETA\s+([\d:]+)/;
-
-function parseProgress(line) {
-  if (!line.includes('[download]') || !line.includes('%')) return null;
-  const m = PROGRESS_RE.exec(line);
-  if (!m) return null;
-
-  const mult = m[3] === 'KiB' ? 1024 : m[3] === 'MiB' ? 1_048_576 : 1_073_741_824;
-  const etaParts = m[4].split(':').map(Number).filter(n => !isNaN(n));
-  const eta = etaParts.length === 2
-    ? etaParts[0] * 60 + etaParts[1]
-    : etaParts.length === 3
-      ? etaParts[0] * 3600 + etaParts[1] * 60 + etaParts[2]
-      : null;
-
-  return { progress: parseFloat(m[1]) / 100, speed: Math.round(parseFloat(m[2]) * mult), eta };
-}
-
-// ---------------------------------------------------------------------------
 // fetchVideoInfo
 // ---------------------------------------------------------------------------
 
 /**
- * Run yt-dlp --dump-json and return parsed JSON.
+ * Run yt-dlp --dump-single-json and return parsed JSON.
  *
  * Hard wall-clock timeout: Cloudflare's Free/Pro plans hard-cap origin
  * responses at 100s (524 error). On a 1-CPU/1-GB VPS, slow upstreams +
@@ -104,27 +68,29 @@ export function fetchVideoInfo(url, opts = {}) {
   const timeoutMs = opts.timeoutMs ?? 85_000;
   return new Promise((resolve, reject) => {
     const ytdlp = findYtDlp();
-    if (!ytdlp) return reject(new Error('yt-dlp not found. Install with: brew install yt-dlp'));
-
     const args = [
-      '--dump-json', '--no-playlist', '--no-warnings',
+      ...commonArgs(), '--dump-single-json',
       // Fail-fast on slow upstreams so we stay under Cloudflare's 100s cap.
       '--socket-timeout', '15',
       '--retries', '1',
       '--extractor-retries', '1',
-      '--no-call-home',
-      '--no-check-certificate',
-      '--user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-      url,
+      '--', url,
     ];
 
-    const proc = spawn(ytdlp, args, { env: enrichedEnv(), stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = spawn(ytdlp, args, { env: enrichedEnv(), stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     let stdout = '';
     let stderr = '';
     let timedOut = false;
     let settled = false;
+    let forceKillTimer;
 
-    const settle = (fn) => (v) => { if (settled) return; settled = true; clearTimeout(killTimer); fn(v); };
+    const settle = (fn) => (v) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(killTimer);
+      clearTimeout(forceKillTimer);
+      fn(v);
+    };
     const resolveOnce = settle(resolve);
     const rejectOnce  = settle(reject);
 
@@ -132,20 +98,22 @@ export function fetchVideoInfo(url, opts = {}) {
     const killTimer = setTimeout(() => {
       timedOut = true;
       try { proc.kill('SIGTERM'); } catch {}
-      setTimeout(() => { try { proc.kill('SIGKILL'); } catch {} }, 2000);
+      forceKillTimer = setTimeout(() => { try { proc.kill('SIGKILL'); } catch {} }, 2000);
     }, timeoutMs);
 
-    proc.stdout.on('data', c => { stdout += c.toString(); });
-    proc.stderr.on('data', c => { stderr += c.toString(); });
-    proc.on('error', err => rejectOnce(new Error(`Failed to spawn yt-dlp: ${err.message}`)));
-    proc.on('close', code => {
+    proc.stdout.setEncoding('utf8');
+    proc.stderr.setEncoding('utf8');
+    proc.stdout.on('data', c => { stdout += c; });
+    proc.stderr.on('data', c => { stderr = (stderr + c).slice(-16_384); });
+    proc.on('error', err => rejectOnce(spawnError(err)));
+    proc.on('close', (code, signal) => {
       if (timedOut) {
         return rejectOnce(new Error(
           `Video info fetch timed out after ${Math.round(timeoutMs / 1000)}s. ` +
           `This URL or the host CDN is too slow for our 1-CPU server — please try again or try a different URL.`
         ));
       }
-      if (code !== 0) return rejectOnce(new Error(`yt-dlp: ${stderr.trim() || `exit code ${code}`}`));
+      if (code !== 0) return rejectOnce(new Error(failureMessage(stderr, code, signal)));
       const line = stdout.split('\n').find(l => l.trim().startsWith('{'));
       if (!line) return rejectOnce(new Error('yt-dlp returned no JSON output'));
       try { resolveOnce(JSON.parse(line)); }
@@ -288,16 +256,16 @@ export function buildFormatString({ includeVideo, includeAudio, merge, videoForm
 export function startSessionDownload(session, { url, formatStr, container }, manager) {
   return new Promise((resolve, reject) => {
     const ytdlp = findYtDlp();
-    if (!ytdlp) return reject(new Error('yt-dlp not found on this server.'));
 
-    const outputDir = join(SESSION_BASE, session.id);
-    mkdirSync(outputDir, { recursive: true });
+    mkdirSync(SESSION_BASE, { recursive: true });
+    const outputDir = mkdtempSync(join(SESSION_BASE, `${session.id}-`));
     session.outputDir = outputDir;
 
     // Sanitize container to prevent argument injection
     const safeContainer = /^[a-z0-9]+$/i.test(container) ? container : 'mp4';
 
     const args = [
+      ...commonArgs(), ...progressArgs(),
       '--format', formatStr,
       '--merge-output-format', safeContainer,
       // When merging to MP4, force audio transcoding to AAC.
@@ -306,88 +274,87 @@ export function startSessionDownload(session, { url, formatStr, container }, man
       // Video is copied as-is (H.264/VP9 both work in MP4 players today).
       ...(safeContainer === 'mp4' ? ['--postprocessor-args', 'Merger+ffmpeg:-c:v copy -c:a aac'] : []),
       '--output', join(outputDir, '%(title).100B.%(ext)s'),
-      '--progress', '--newline',
-      '--no-playlist',
       '--concurrent-fragments', '2',
       '--retries', '5',
       '--fragment-retries', '5',
       '--extractor-retries', '3',
       '--socket-timeout', '30',
-      '--no-warnings',
-      '--user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-      url,
+      '--', url,
     ];
 
     const proc = spawn(ytdlp, args, {
       env: enrichedEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
     });
     session.process = proc;
 
     let resolvedPath = null;
     let stderrBuf = '';
+    let launchError = null;
+    // Cancellation may immediately start another process on the same session.
+    const isCurrent = () => manager.getSession(session.id) === session &&
+      session.state === 'downloading' && session.process === proc;
 
     const handleLine = (line) => {
-      // Final merged file path — also signal the UI to show "Merging…"
-      const mergerMatch = /\[Merger\] Merging formats into "(.+)"/.exec(line);
-      if (mergerMatch) {
-        resolvedPath = mergerMatch[1];
-        manager.notifyState(session.id, 'merging');
+      if (!isCurrent()) return;
+      // Stable machine-readable output; human log wording is not an API.
+      if (line.startsWith(FILE_PREFIX)) {
+        try {
+          const path = JSON.parse(line.slice(FILE_PREFIX.length));
+          if (typeof path === 'string') resolvedPath = path;
+        } catch { /* completion will report the missing final path */ }
         return;
       }
-
-      // MoveFiles: post-processing rename
-      const moveMatch = /\[MoveFiles\] Moving file from ".*" to "(.+)"/.exec(line);
-      if (moveMatch) { resolvedPath = moveMatch[1]; return; }
-
-      // Destination: single-stream or audio-only download
-      if (!resolvedPath && line.includes('[download] Destination:')) {
-        const dest = line.replace('[download] Destination:', '').trim();
-        if (dest && !dest.endsWith('.part')) resolvedPath = dest;
+      if (line.startsWith(POSTPROCESS_PREFIX)) {
+        manager.notifyState(session.id, 'merging');
+        return;
       }
 
       const update = parseProgress(line);
       if (update) manager.notifyProgress(session.id, update);
     };
 
-    proc.stdout.on('data', chunk => chunk.toString().split('\n').forEach(handleLine));
+    createInterface({ input: proc.stdout, crlfDelay: Infinity }).on('line', handleLine);
+    createInterface({ input: proc.stderr, crlfDelay: Infinity }).on('line', handleLine);
+    proc.stderr.setEncoding('utf8');
     proc.stderr.on('data', chunk => {
-      const s = chunk.toString();
-      stderrBuf += s;
-      s.split('\n').forEach(handleLine);
+      stderrBuf = (stderrBuf + chunk).slice(-16_384);
     });
-    proc.on('error', err => reject(err));
+    proc.on('error', err => { launchError = spawnError(err); });
 
-    proc.on('close', code => {
+    proc.on('close', (code, signal) => {
+      if (!isCurrent()) {
+        // The old child may have recreated a partial file after cancellation cleanup.
+        try { rmSync(outputDir, { recursive: true, force: true }); } catch {}
+        resolve();
+        return;
+      }
       session.process = null;
 
-      // If cancelled/disconnected, state won't be 'downloading' anymore — exit silently
-      const sess = manager.getSession(session.id);
-      if (!sess || sess.state !== 'downloading') { resolve(); return; }
-
-      if (code !== 0 && code !== null) {
-        const reason = stderrBuf.trim().split('\n').pop() || `yt-dlp exited with code ${code}`;
-        reject(new Error(reason));
+      if (launchError) { reject(launchError); return; }
+      if (code !== 0) {
+        reject(new Error(failureMessage(stderrBuf, code, signal)));
         return;
       }
 
-      // Find output file: prefer parsed path, fall back to directory scan
-      const candidate = (resolvedPath && existsSync(resolvedPath))
-        ? resolvedPath
-        : (() => {
-            try {
-              const files = readdirSync(outputDir).filter(
-                f => !f.endsWith('.part') && !f.startsWith('.') && !/\.f\d+\./.test(f)
-              );
-              return files.length > 0 ? join(outputDir, files[0]) : null;
-            } catch { return null; }
-          })();
+      // Only after_move identifies the completed artifact after postprocessor renames.
+      let candidate = null;
+      if (resolvedPath) {
+        const fullPath = resolvePath(resolvedPath);
+        const rel = relative(outputDir, fullPath);
+        try {
+          if (rel && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel) && statSync(fullPath).isFile()) {
+            candidate = fullPath;
+          }
+        } catch { /* missing final artifact */ }
+      }
 
       if (candidate) {
         manager.notifyCompleted(session.id, candidate);
         resolve();
       } else {
-        reject(new Error('Download completed but no output file was found.'));
+        reject(new Error(`No completed output file was found. ${failureMessage(stderrBuf, code, signal)}`));
       }
     });
   });
