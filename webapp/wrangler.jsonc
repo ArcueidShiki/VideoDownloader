@@ -42,7 +42,7 @@
   //   3. No conflicting Page Rule / Worker Route already claims these paths
   //
   "routes": [
-    { "pattern": "videos-downloads.com",     "videos-downloads.com": true },
-    { "pattern": "www.videos-downloads.com", "videos-downloads.com": true }
+    { "pattern": "videos-downloads.com",     "custom_domain": true },
+    { "pattern": "www.videos-downloads.com", "custom_domain": true }
   ]
 }
