@@ -12,6 +12,7 @@ public final class YtDlpTask: DownloadTaskProtocol, @unchecked Sendable {
     private let options: DownloadOptions
     private let onUpdate: @Sendable (DownloadItem) -> Void
     private var process: Process?
+    private var processGroup: pid_t?
     private let lock = NSLock()
     /// Tracks the latest progress so pause() preserves it instead of resetting to 0.
     private var latestProgress: Double = 0
@@ -38,8 +39,11 @@ public final class YtDlpTask: DownloadTaskProtocol, @unchecked Sendable {
             running = true
             wasInterrupted = false
             return true
-        }) else { return }
-        defer { lock.withLock { running = false; process = nil } }
+        }) else {
+            throw NSError(domain: "YtDlp", code: 3, userInfo: [NSLocalizedDescriptionKey:
+                "The previous download is still stopping. Wait for it to finish before retrying."])
+        }
+        defer { lock.withLock { running = false; process = nil; processGroup = nil } }
         do {
             let ytdlpPath = try executableOverride ?? Self.findYtDlp()
             try FileManager.default.createDirectory(at: options.outputDirectory, withIntermediateDirectories: true)
@@ -58,6 +62,15 @@ public final class YtDlpTask: DownloadTaskProtocol, @unchecked Sendable {
                     guard !wasInterrupted else { throw CancellationError() }
                     process = proc
                     try proc.run()
+                    // Foundation creates a separate process group on macOS. Verify
+                    // ownership before ever signalling a negative PID.
+                    let pid = proc.processIdentifier
+                    guard getpgid(pid) == pid, pid != getpgrp() else {
+                        proc.terminate()
+                        throw NSError(domain: "YtDlp", code: 4, userInfo: [NSLocalizedDescriptionKey:
+                            "Could not isolate the download process group."])
+                    }
+                    processGroup = pid
                     onUpdate(item.with(state: .active, progress: latestProgress))
                 }
             }) { [self] line in
@@ -101,16 +114,21 @@ public final class YtDlpTask: DownloadTaskProtocol, @unchecked Sendable {
     private let executableOverride: String?
 
     private func stop() async {
-        let proc = lock.withLock { () -> Process? in
+        let group = lock.withLock { () -> pid_t? in
             wasInterrupted = true
-            if let process, process.isRunning { process.interrupt() }
-            return process
+            if let processGroup { kill(-processGroup, SIGINT) }
+            return processGroup
         }
-        // Drain the old writer before pause/retry returns. Escalate only this owned child.
-        for tick in 0..<100 {
-            if !lock.withLock({ running }) { return }
-            if tick == 30, let proc, proc.isRunning { proc.terminate() }
-            if tick == 60, let proc, proc.isRunning { kill(proc.processIdentifier, SIGKILL) }
+        // A descendant (for example FFmpeg) may keep writing and retain both
+        // pipes after the extractor exits. Signal the verified owned group even
+        // when Process.isRunning is false, and never treat a deadline as EOF.
+        var tick = 0
+        while lock.withLock({ running }) {
+            if let group {
+                if tick == 30 { kill(-group, SIGTERM) }
+                if tick >= 60 && tick % 30 == 0 { kill(-group, SIGKILL) }
+            }
+            tick += 1
             try? await Task.sleep(for: .milliseconds(100))
         }
     }

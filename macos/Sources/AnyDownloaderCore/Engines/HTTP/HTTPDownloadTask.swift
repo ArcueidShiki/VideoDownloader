@@ -35,35 +35,69 @@ public final class HTTPDownloadTask: DownloadTaskProtocol, @unchecked Sendable {
 
     // Per-run state
     private var currentSession: URLSession?
+    private var runningTask: (id: UUID, task: Task<Void, Error>)?
+    private let sessionConfiguration: URLSessionConfiguration
     private var isStopped = false   // true while paused or cancelled
 
     public init(
         item: DownloadItem,
         options: DownloadOptions,
+        sessionConfiguration: URLSessionConfiguration = .default,
         onUpdate: @Sendable @escaping (DownloadItem) -> Void
     ) {
         self.itemID = item.id
         self.item = item
         self.options = options
+        self.sessionConfiguration = sessionConfiguration
         self.onUpdate = onUpdate
         self.latestProgress = item.progress
     }
 
     public func start() async throws {
+        let run = lock.withLock { () -> (id: UUID, task: Task<Void, Error>) in
+            if let runningTask { return runningTask }
+            isStopped = false
+            let run = (id: UUID(), task: Task {
+                do { try await self.performDownload() }
+                catch {
+                    if !self.lock.withLock({ self.isStopped }) { throw error }
+                }
+            })
+            runningTask = run
+            return run
+        }
+        defer {
+            lock.withLock {
+                if runningTask?.id == run.id { runningTask = nil }
+            }
+        }
+        try await run.task.value
+    }
+
+    private func performDownload() async throws {
         guard let url = URL(string: item.url) else { throw URLError(.badURL) }
-        lock.withLock { isStopped = false }
+        guard !lock.withLock({ isStopped }) else { return }
 
         // ── First run only: HEAD request + file setup ──────────────────────────
         if lock.withLock({ savedContentLength == 0 }) {
-            let probe = URLSession(configuration: .default)
+            let probe = URLSession(configuration: sessionConfiguration)
             defer { probe.invalidateAndCancel() }
+            let probing = lock.withLock {
+                guard !isStopped else { return false }
+                currentSession = probe
+                return true
+            }
+            guard probing else { return }
             var headReq = URLRequest(url: url)
             headReq.httpMethod = "HEAD"
             let (_, headResponse) = try await probe.data(for: headReq)
-            let headers = (headResponse as? HTTPURLResponse)?
-                .allHeaderFields as? [String: String] ?? [:]
-            let contentLength = Int64(headers["Content-Length"] ?? "") ?? 0
-            let acceptsRanges = headers["Accept-Ranges"] == "bytes"
+            guard !lock.withLock({ isStopped }) else { return }
+            guard let response = headResponse as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+            guard (200..<300).contains(response.statusCode) else {
+                throw Self.responseError(response.statusCode)
+            }
+            let contentLength = Int64(response.value(forHTTPHeaderField: "Content-Length") ?? "") ?? 0
+            let acceptsRanges = response.value(forHTTPHeaderField: "Accept-Ranges")?.lowercased() == "bytes"
             let threadCount = (contentLength > 0 && acceptsRanges) ? options.threadCount : 1
             let outputURL = options.outputDirectory
                 .appendingPathComponent(url.lastPathComponent)
@@ -98,8 +132,13 @@ public final class HTTPDownloadTask: DownloadTaskProtocol, @unchecked Sendable {
 
         let fileHandle = try FileHandle(forWritingTo: outputURL)
         let writer = FileWriter(fileHandle)
-        let sess = URLSession(configuration: .default)
-        lock.withLock { currentSession = sess }
+        let sess = URLSession(configuration: sessionConfiguration)
+        let downloading = lock.withLock {
+            guard !isStopped else { return false }
+            currentSession = sess
+            return true
+        }
+        guard downloading else { await writer.close(); sess.invalidateAndCancel(); return }
 
         // ── Rebuild segment manager; pre-credit already-completed segments ──────
         let mgr = MutableSegmentManager(totalBytes: contentLength, threadCount: threadCount)
@@ -117,64 +156,94 @@ public final class HTTPDownloadTask: DownloadTaskProtocol, @unchecked Sendable {
 
         // ── Download incomplete segments ────────────────────────────────────────
         defer {
-            Task { await writer.close() }
+            sess.invalidateAndCancel()
             lock.withLock { currentSession = nil }
         }
 
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            for i in 0..<mgr.segmentCount {
-                if alreadyDone.contains(i) { continue }
-                guard !lock.withLock({ isStopped }) else { break }
-                let segment = mgr.segment(at: i)
-                group.addTask {
-                    do {
-                        var req = URLRequest(url: url)
-                        if acceptsRanges {
-                            req.setValue(
-                                "bytes=\(segment.range.lowerBound)-\(segment.range.upperBound - 1)",
-                                forHTTPHeaderField: "Range"
-                            )
-                        }
-                        let (data, _) = try await sess.data(for: req)
+        do {
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                for i in 0..<mgr.segmentCount {
+                    if alreadyDone.contains(i) { continue }
+                    guard !lock.withLock({ isStopped }) else { break }
+                    let segment = mgr.segment(at: i)
+                    group.addTask {
+                        do {
+                            var req = URLRequest(url: url)
+                            if acceptsRanges {
+                                req.setValue(
+                                    "bytes=\(segment.range.lowerBound)-\(segment.range.upperBound - 1)",
+                                    forHTTPHeaderField: "Range"
+                                )
+                            }
+                            let (data, rawResponse) = try await sess.data(for: req)
+                            guard !self.lock.withLock({ self.isStopped }) else { return }
+                            guard let response = rawResponse as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+                            guard response.statusCode == (acceptsRanges ? 206 : 200) else {
+                                throw Self.responseError(response.statusCode)
+                            }
+                            guard !data.isEmpty else { throw URLError(.zeroByteResource) }
+                            if acceptsRanges {
+                                let expected = "bytes \(segment.range.lowerBound)-\(segment.range.upperBound - 1)/\(contentLength)"
+                                guard response.value(forHTTPHeaderField: "Content-Range") == expected,
+                                      data.count == segment.range.count else { throw URLError(.badServerResponse) }
+                            } else if contentLength > 1 && data.count != contentLength {
+                                throw URLError(.networkConnectionLost)
+                            }
 
-                        // Actor serialises seek+write; prevents interleaving across segments
-                        try await writer.write(data, at: UInt64(segment.range.lowerBound))
+                            // Actor serialises seek+write; prevents interleaving across segments
+                            try await writer.write(data, at: UInt64(segment.range.lowerBound))
 
-                        mgr.markReceived(segmentIndex: i, bytes: Int64(data.count))
-                        mgr.markComplete(segmentIndex: i)
-                        let prog = mgr.progress
-                        self.lock.withLock {
-                            self.completedSegmentSet.insert(i)
-                            self.latestProgress = prog
+                            mgr.markReceived(segmentIndex: i, bytes: Int64(data.count))
+                            mgr.markComplete(segmentIndex: i)
+                            let prog = mgr.progress
+                            self.lock.withLock {
+                                self.completedSegmentSet.insert(i)
+                                self.latestProgress = prog
+                            }
+                            self.onUpdate(self.item.with(
+                                state: .active,
+                                progress: prog,
+                                totalBytes: contentLength > 1 ? contentLength : nil,
+                                receivedBytes: mgr.totalReceivedBytes
+                            ))
+                        } catch let err as URLError where err.code == .cancelled {
+                            // Session was invalidated (pause or cancel) — silently stop
                         }
-                        self.onUpdate(self.item.with(
-                            state: .active,
-                            progress: prog,
-                            totalBytes: contentLength > 1 ? contentLength : nil,
-                            receivedBytes: mgr.totalReceivedBytes
-                        ))
-                    } catch let err as URLError where err.code == .cancelled {
-                        // Session was invalidated (pause or cancel) — silently stop
                     }
                 }
+                try await group.waitForAll()
             }
-            try await group.waitForAll()
-        }
 
+        } catch {
+            await writer.close()
+            throw error
+        }
+        await writer.close()
         let stopped = lock.withLock { isStopped }
         if stopped { return }   // pause()/cancel() already emitted the new state
 
-        onUpdate(item.with(state: .completed, progress: mgr.progress,
+        onUpdate(item.with(state: .completed, progress: 1,
                            filePath: outputURL.path, receivedBytes: mgr.totalReceivedBytes))
     }
 
-    public func pause() async {
-        let prog = lock.withLock {
+    private func stop() async {
+        let run = lock.withLock {
             isStopped = true
             currentSession?.invalidateAndCancel()
-            currentSession = nil
-            return latestProgress
+            return runningTask
         }
+        // Drain the HEAD probe, segment writers and callbacks before resume can
+        // reset the stop flag. Otherwise an old run can revive a paused row.
+        if let run { _ = await run.task.result }
+        lock.withLock {
+            if runningTask?.id == run?.id { runningTask = nil }
+            currentSession = nil
+        }
+    }
+
+    public func pause() async {
+        await stop()
+        let prog = lock.withLock { latestProgress }
         onUpdate(item.with(state: .paused, progress: prog, speedBytesPerSec: 0))
     }
 
@@ -183,15 +252,17 @@ public final class HTTPDownloadTask: DownloadTaskProtocol, @unchecked Sendable {
     }
 
     public func cancel() async {
+        await stop()
         lock.withLock {
-            isStopped = true
-            currentSession?.invalidateAndCancel()
-            currentSession = nil
-            // Clear all state so a fresh retry starts from scratch
             completedSegmentSet.removeAll()
             savedContentLength = 0
         }
         onUpdate(item.with(state: .failed, errorMessage: "Cancelled"))
+    }
+
+    private static func responseError(_ status: Int) -> NSError {
+        NSError(domain: "HTTPDownload", code: status, userInfo: [NSLocalizedDescriptionKey:
+            "The server returned HTTP \(status) instead of the requested media. Check the URL or retry later."])
     }
 
     func supportsRangeRequests(headers: [String: String]) -> Bool {

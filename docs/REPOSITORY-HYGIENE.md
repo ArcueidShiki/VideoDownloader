@@ -13,8 +13,11 @@ when the destination does not exist. Keep the archive until it is no longer need
 Only these directories are eligible: `macos/.build`, `macos/.build-app`,
 `macos/build`, `macos/DerivedData`, `webapp/dist`, `webapp/build`, `webapp/coverage`,
 `windows/publish`, `windows/dist`. Tracked contents or symlink paths abort cleanup.
-Source modifications, downloads, SQLite history, dependency tools, release packages,
-node_modules and unknown files are never selected. Stop builds before archiving.
+Paths outside this allowlist (including downloads, SQLite history, dependency tools,
+release packages and node_modules) are not selected. Each eligible directory moves
+as a whole: any unexpected user files inside it move too and remain recoverable.
+Review the preview and stop builds before archiving. If interrupted between rename
+and manifest update, inspect the archive batch for the last moved directory.
 
 After reviewing/staging source and committing, use:
 

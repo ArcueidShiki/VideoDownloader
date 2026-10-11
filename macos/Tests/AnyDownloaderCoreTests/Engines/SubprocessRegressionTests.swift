@@ -88,4 +88,43 @@ struct SubprocessRegressionTests {
         try await run.value
         #expect(updates.last?.state == .paused)
     }
+    @Test("pause stops a signal-resistant descendant writer before retry")
+    func descendantWriter() async throws {
+        let (root, executable) = try fixture("""
+        if [ -e first-attempt ]; then
+          printf media > clip.mp4
+          printf '__ANYDOWNLOADER_FILE__"%s/clip.mp4"' "$PWD"
+          exit 0
+        fi
+        touch first-attempt
+        (
+          trap '' INT TERM
+          touch child.ready
+          while :; do printf x >> writer.part; sleep 0.05; done
+        ) &
+        echo $! > child.pid
+        wait
+        """)
+        let updates = Updates()
+        let task = YtDlpTask(item: DownloadItem(url: "https://example.com/clip", type: .ytdlp),
+                             options: DownloadOptions(outputDirectory: root), executablePath: executable,
+                             onUpdate: updates.add)
+        let run = Task { try await task.start() }
+        let deadline = Date().addingTimeInterval(5)
+        while !FileManager.default.fileExists(atPath: root.appendingPathComponent("writer.part").path) && Date() < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let pid = try #require(Int32(try String(contentsOf: root.appendingPathComponent("child.pid"), encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)))
+        defer { kill(pid, SIGKILL); try? FileManager.default.removeItem(at: root) }
+        await task.pause()
+        try await run.value
+        #expect(updates.last?.state == .paused)
+        let size = try Data(contentsOf: root.appendingPathComponent("writer.part")).count
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(try Data(contentsOf: root.appendingPathComponent("writer.part")).count == size)
+        try await task.resume()
+        #expect(updates.last?.state == .completed)
+        #expect(try Data(contentsOf: root.appendingPathComponent("clip.mp4")) == Data("media".utf8))
+    }
+
 }
