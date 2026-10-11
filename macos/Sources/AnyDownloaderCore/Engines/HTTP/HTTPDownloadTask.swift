@@ -10,8 +10,10 @@ private actor FileWriter {
 
     func write(_ data: Data, at offset: UInt64) throws {
         try handle.seek(toOffset: offset)
-        handle.write(data)
+        try handle.write(contentsOf: data)
     }
+
+    func truncate(to length: UInt64) throws { try handle.truncate(atOffset: length) }
 
     func close() { try? handle.close() }
 }
@@ -28,6 +30,8 @@ public final class HTTPDownloadTask: DownloadTaskProtocol, @unchecked Sendable {
     // Persisted across pause/resume — cleared only on cancel
     private var completedSegmentSet = Set<Int>()
     private var savedContentLength: Int64 = 0
+    private var savedRepresentationLength: Int64?
+    private var savedContentCoding = ""
     private var savedAcceptsRanges = false
     private var savedThreadCount = 0
     private var savedOutputURL: URL?
@@ -90,14 +94,19 @@ public final class HTTPDownloadTask: DownloadTaskProtocol, @unchecked Sendable {
             guard probing else { return }
             var headReq = URLRequest(url: url)
             headReq.httpMethod = "HEAD"
+            headReq.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
             let (_, headResponse) = try await probe.data(for: headReq)
             guard !lock.withLock({ isStopped }) else { return }
             guard let response = headResponse as? HTTPURLResponse else { throw URLError(.badServerResponse) }
             guard (200..<300).contains(response.statusCode) else {
                 throw Self.responseError(response.statusCode)
             }
-            let contentLength = Int64(response.value(forHTTPHeaderField: "Content-Length") ?? "") ?? 0
-            let acceptsRanges = response.value(forHTTPHeaderField: "Accept-Ranges")?.lowercased() == "bytes"
+            // Content-Length and byte ranges describe the encoded representation
+            // (RFC 9110, sections 8.4/14.1.2). URLSession returns decoded Data.
+            let contentLength = Self.isIdentity(response)
+                ? Int64(response.value(forHTTPHeaderField: "Content-Length") ?? "") ?? 0 : 0
+            let acceptsRanges = contentLength > 0 && Self.isIdentity(response)
+                && response.value(forHTTPHeaderField: "Accept-Ranges")?.lowercased() == "bytes"
             let threadCount = (contentLength > 0 && acceptsRanges) ? options.threadCount : 1
             let outputURL = options.outputDirectory
                 .appendingPathComponent(url.lastPathComponent)
@@ -110,6 +119,8 @@ public final class HTTPDownloadTask: DownloadTaskProtocol, @unchecked Sendable {
             }
             lock.withLock {
                 savedContentLength = max(contentLength, 1)
+                savedRepresentationLength = Int64(response.value(forHTTPHeaderField: "Content-Length") ?? "")
+                savedContentCoding = Self.contentCoding(response)
                 savedAcceptsRanges = acceptsRanges
                 savedThreadCount = threadCount
                 savedOutputURL = outputURL
@@ -118,6 +129,7 @@ public final class HTTPDownloadTask: DownloadTaskProtocol, @unchecked Sendable {
 
         let (contentLength, acceptsRanges, threadCount, outputURL): (Int64, Bool, Int, URL) =
             lock.withLock { (savedContentLength, savedAcceptsRanges, savedThreadCount, savedOutputURL!) }
+        let (representationLength, contentCoding) = lock.withLock { (savedRepresentationLength, savedContentCoding) }
 
         // Re-create the file if it was deleted between sessions
         if !FileManager.default.fileExists(atPath: outputURL.path) {
@@ -169,6 +181,7 @@ public final class HTTPDownloadTask: DownloadTaskProtocol, @unchecked Sendable {
                     group.addTask {
                         do {
                             var req = URLRequest(url: url)
+                            req.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
                             if acceptsRanges {
                                 req.setValue(
                                     "bytes=\(segment.range.lowerBound)-\(segment.range.upperBound - 1)",
@@ -182,28 +195,45 @@ public final class HTTPDownloadTask: DownloadTaskProtocol, @unchecked Sendable {
                                 throw Self.responseError(response.statusCode)
                             }
                             guard !data.isEmpty else { throw URLError(.zeroByteResource) }
-                            if acceptsRanges {
-                                let expected = "bytes \(segment.range.lowerBound)-\(segment.range.upperBound - 1)/\(contentLength)"
-                                guard response.value(forHTTPHeaderField: "Content-Range") == expected,
-                                      data.count == segment.range.count else { throw URLError(.badServerResponse) }
-                            } else if contentLength > 1 && data.count != contentLength {
+                            let responseLength = Int64(response.value(forHTTPHeaderField: "Content-Length") ?? "")
+                            if !acceptsRanges, Self.contentCoding(response) == contentCoding,
+                               let representationLength, let responseLength,
+                               responseLength != representationLength {
                                 throw URLError(.networkConnectionLost)
                             }
+                            if acceptsRanges {
+                                let expected = "bytes \(segment.range.lowerBound)-\(segment.range.upperBound - 1)/\(contentLength)"
+                                guard Self.isIdentity(response),
+                                      response.value(forHTTPHeaderField: "Content-Range") == expected,
+                                      data.count == segment.range.count else { throw URLError(.badServerResponse) }
+                            } else if Self.isIdentity(response) {
+                                if let responseLength, data.count != responseLength {
+                                    throw URLError(.networkConnectionLost)
+                                }
+                                if contentLength > 1 && data.count != contentLength {
+                                    throw URLError(.networkConnectionLost)
+                                }
+                            }
+                            // For content-coded full responses, URLSession handles
+                            // transport framing and decoding. Its decoded Data length must
+                            // never be compared with the compressed Content-Length.
 
                             // Actor serialises seek+write; prevents interleaving across segments
                             try await writer.write(data, at: UInt64(segment.range.lowerBound))
+                            if !acceptsRanges { try await writer.truncate(to: UInt64(data.count)) }
 
                             mgr.markReceived(segmentIndex: i, bytes: Int64(data.count))
                             mgr.markComplete(segmentIndex: i)
-                            let prog = mgr.progress
+                            let prog = acceptsRanges ? mgr.progress : 1
                             self.lock.withLock {
                                 self.completedSegmentSet.insert(i)
                                 self.latestProgress = prog
+                                if !acceptsRanges { self.savedContentLength = Int64(data.count) }
                             }
                             self.onUpdate(self.item.with(
                                 state: .active,
                                 progress: prog,
-                                totalBytes: contentLength > 1 ? contentLength : nil,
+                                totalBytes: acceptsRanges ? contentLength : Int64(data.count),
                                 receivedBytes: mgr.totalReceivedBytes
                             ))
                         } catch let err as URLError where err.code == .cancelled {
@@ -223,7 +253,8 @@ public final class HTTPDownloadTask: DownloadTaskProtocol, @unchecked Sendable {
         if stopped { return }   // pause()/cancel() already emitted the new state
 
         onUpdate(item.with(state: .completed, progress: 1,
-                           filePath: outputURL.path, receivedBytes: mgr.totalReceivedBytes))
+                           filePath: outputURL.path, totalBytes: mgr.totalReceivedBytes,
+                           receivedBytes: mgr.totalReceivedBytes))
     }
 
     private func stop() async {
@@ -263,6 +294,18 @@ public final class HTTPDownloadTask: DownloadTaskProtocol, @unchecked Sendable {
     private static func responseError(_ status: Int) -> NSError {
         NSError(domain: "HTTPDownload", code: status, userInfo: [NSLocalizedDescriptionKey:
             "The server returned HTTP \(status) instead of the requested media. Check the URL or retry later."])
+    }
+
+    private static func isIdentity(_ response: HTTPURLResponse) -> Bool {
+        contentCoding(response).isEmpty
+    }
+
+    private static func contentCoding(_ response: HTTPURLResponse) -> String {
+        (response.value(forHTTPHeaderField: "Content-Encoding") ?? "")
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { $0 != "identity" }
+            .joined(separator: ",")
     }
 
     func supportsRangeRequests(headers: [String: String]) -> Bool {
