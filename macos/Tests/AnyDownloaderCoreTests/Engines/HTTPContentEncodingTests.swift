@@ -23,10 +23,15 @@ struct HTTPContentEncodingTests {
         func ready() async throws {
             let file = root.appendingPathComponent("port")
             let deadline = Date().addingTimeInterval(5)
-            while !FileManager.default.fileExists(atPath: file.path), Date() < deadline {
+            while Date() < deadline {
+                if let value = try? String(contentsOf: file, encoding: .utf8),
+                   let number = Int(value), (1...65535).contains(number) {
+                    port = value
+                    return
+                }
                 try await Task.sleep(for: .milliseconds(10))
             }
-            port = try String(contentsOf: file, encoding: .utf8)
+            throw URLError(.timedOut)
         }
         func close() {
             if process.isRunning { process.terminate() }
@@ -78,7 +83,8 @@ struct HTTPContentEncodingTests {
                     except (BrokenPipeError, ConnectionResetError): pass
             def log_message(self, *args): pass
         server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
-        (root / 'port').write_text(str(server.server_port))
+        (root / 'port.tmp').write_text(str(server.server_port))
+        (root / 'port.tmp').replace(root / 'port')
         server.serve_forever()
         """#
     }
