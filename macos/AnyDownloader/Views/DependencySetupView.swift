@@ -3,6 +3,8 @@ import AnyDownloaderCore
 
 struct DependencySetupView: View {
     @State private var status = DependencyStatus.check()
+    @State private var healthIssues: [String] = []
+    @State private var checking = true
     @State private var installing: String? = nil
     @State private var installLog: String = ""
     @State private var installError: String? = nil
@@ -26,7 +28,7 @@ struct DependencySetupView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("AnyDownloader Setup")
                         .font(.title2.bold())
-                    Text("Two command-line tools are required before downloading.")
+                    Text("Install the tools needed for video and torrent downloads.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -40,16 +42,29 @@ struct DependencySetupView: View {
                        description: "Handles torrents and magnet links",
                        installed: !status.aria2cMissing,
                        installing: installing == "aria2c",
-                       brewInstalled: brewInstalled) {
+                       brewInstalled: brewInstalled && installing == nil) {
                     Task { await install("aria2") }
                 }
                 DepRow(name: "yt-dlp",
                        description: "Downloads from YouTube, Vimeo, etc.",
                        installed: !status.ytDlpMissing,
                        installing: installing == "yt-dlp",
-                       brewInstalled: brewInstalled) {
+                       brewInstalled: brewInstalled && installing == nil) {
                     Task { await install("yt-dlp") }
                 }
+
+                DepRow(name: "Deno", description: "JavaScript runtime for video extraction",
+                       installed: status.denoPath != nil, installing: installing == "deno",
+                       brewInstalled: brewInstalled && installing == nil) {
+                    Task { await install("deno") }
+                }
+                DepRow(name: "FFmpeg / ffprobe", description: "Merges and inspects video and audio",
+                       installed: status.ffmpegPath != nil && status.ffprobePath != nil,
+                       installing: installing == "ffmpeg", brewInstalled: brewInstalled && installing == nil) {
+                    Task { await install("ffmpeg") }
+                }
+                Button("Check again") { Task { await refreshHealth() } }
+                    .disabled(installing != nil)
 
                 if !brewInstalled {
                     Link("Install Homebrew first →",
@@ -71,6 +86,10 @@ struct DependencySetupView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
 
+                if !healthIssues.isEmpty {
+                    Text(healthIssues.joined(separator: "\n") + "\nFor broken tools, run brew reinstall <tool> in Terminal, then Check again.")
+                        .font(.system(size: 11)).foregroundColor(.orange)
+                }
                 if let err = installError {
                     Text(err)
                         .font(.system(size: 11))
@@ -89,13 +108,21 @@ struct DependencySetupView: View {
                 Spacer()
                 Button("Continue") { onComplete() }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!status.allPresent)
+                    .disabled(!status.allPresent || checking || !healthIssues.isEmpty)
                     .keyboardShortcut(.return)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
         }
         .frame(width: 460)
+        .task { await refreshHealth() }
+    }
+
+    private func refreshHealth() async {
+        checking = true
+        status = DependencyStatus.check()
+        healthIssues = await DependencyStatus.healthIssues()
+        checking = false
     }
 
     private func install(_ packageName: String) async {
@@ -136,6 +163,7 @@ struct DependencySetupView: View {
             installError = error.localizedDescription
         }
         installing = nil
+        await refreshHealth()
     }
 }
 

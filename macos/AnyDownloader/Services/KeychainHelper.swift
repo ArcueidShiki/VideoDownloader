@@ -9,7 +9,7 @@ import Security
 /// modified by other processes without the same code-signing identity.
 enum KeychainHelper {
 
-    private static let service = "com.anydownloader.app"
+    private static let service = Bundle.main.bundleIdentifier ?? "com.anydownloader.app"
 
     // MARK: - Bool
 

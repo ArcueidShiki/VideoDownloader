@@ -10,6 +10,7 @@ public final class DownloadStore {
     private let validator = InputValidator()
     private let classifier = URLClassifier()
     private var activeTasks: [UUID: any DownloadTaskProtocol] = [:]
+    private var attemptIDs: [UUID: UUID] = [:]
     private var pausedTasks: [UUID: any DownloadTaskProtocol] = [:]
     private let httpEngine = HTTPDownloadEngine()
     private let ytdlpEngine = YtDlpEngine()
@@ -199,13 +200,24 @@ public final class DownloadStore {
         let task = pausedTasks.removeValue(forKey: id)
             ?? makeTask(for: item, options: buildOptions(for: item, outputDirectory: outputDirectory))
         activeTasks[id] = task
-        Task { try? await task.resume() }
+        applyUpdate(id: id) { $0.with(state: .active) }
+        let attempt = attemptIDs[id]
+        Task {
+            guard attemptIDs[id] == attempt, items.contains(where: { $0.id == id && $0.state == .active }) else { return }
+            do { try await task.resume() }
+            catch {
+                guard attemptIDs[id] == attempt else { return }
+                applyUpdate(id: id) { $0.with(state: .failed, errorMessage: error.localizedDescription) }
+                if let updated = items.first(where: { $0.id == id }) { try? persistence.save(updated) }
+            }
+        }
     }
 
     /// Restarts a completed or failed download **in-place** — same row, same UUID.
     /// If the item already has video info and a chosen format (yt-dlp), it skips
     /// straight to queued so the format picker doesn't reappear.
     public func restart(id: UUID, outputDirectory: URL) async {
+        attemptIDs[id] = UUID()
         if let task = activeTasks[id] { await task.cancel() }
         if let task = pausedTasks[id]  { await task.cancel() }
         activeTasks.removeValue(forKey: id)
@@ -244,6 +256,7 @@ public final class DownloadStore {
     }
 
     public func cancel(id: UUID) async {
+        attemptIDs[id] = UUID()
         if let task = activeTasks[id] { await task.cancel() }
         if let task = pausedTasks[id]  { await task.cancel() }
         activeTasks.removeValue(forKey: id)
@@ -262,8 +275,13 @@ public final class DownloadStore {
     }
 
     public func remove(id: UUID) {
-        pausedTasks.removeValue(forKey: id)
-        activeTasks.removeValue(forKey: id)
+        attemptIDs[id] = UUID()
+        let paused = pausedTasks.removeValue(forKey: id)
+        let active = activeTasks.removeValue(forKey: id)
+        Task {
+            await active?.cancel()
+            await paused?.cancel()
+        }
         items.removeAll { $0.id == id }
         try? persistence.delete(id: id)
     }
@@ -304,6 +322,9 @@ public final class DownloadStore {
     // MARK: - Private helpers
 
     private func fetchVideoInfo(item: DownloadItem, options: DownloadOptions) async {
+        guard items.contains(where: { $0.id == item.id && $0.state != .failed }) else { return }
+        let attempt = UUID()
+        attemptIDs[item.id] = attempt
         // Return immediately from cache if already fetched for this URL
         if let cached = videoInfoCache[item.url] {
             applyUpdate(id: item.id) {
@@ -315,11 +336,13 @@ public final class DownloadStore {
         do {
             let ytdlpPath = try YtDlpTask.findYtDlp()
             let info = try await URLInfoFetcher.fetch(url: item.url, ytDlpPath: ytdlpPath)
+            guard attemptIDs[item.id] == attempt else { return }
             videoInfoCache[item.url] = info
             applyUpdate(id: item.id) {
                 $0.with(state: .selectingFormat, title: info.title, videoInfo: info)
             }
         } catch {
+            guard attemptIDs[item.id] == attempt else { return }
             applyUpdate(id: item.id) { $0.with(state: .failed, errorMessage: error.localizedDescription) }
         }
     }
@@ -350,7 +373,17 @@ public final class DownloadStore {
         guard activeCount < maxConcurrentTasks else { return }
         let task = makeTask(for: item, options: options)
         activeTasks[item.id] = task
-        Task { try? await task.start() }
+        applyUpdate(id: item.id) { $0.with(state: .active) }
+        let attempt = attemptIDs[item.id]
+        Task {
+            guard attemptIDs[item.id] == attempt, items.contains(where: { $0.id == item.id && $0.state == .active }) else { return }
+            do { try await task.start() }
+            catch {
+                guard attemptIDs[item.id] == attempt else { return }
+                applyUpdate(id: item.id) { $0.with(state: .failed, errorMessage: error.localizedDescription) }
+                if let updated = items.first(where: { $0.id == item.id }) { try? persistence.save(updated) }
+            }
+        }
     }
 
     private func buildOptions(for item: DownloadItem, outputDirectory: URL) -> DownloadOptions {
@@ -363,8 +396,11 @@ public final class DownloadStore {
     }
 
     private func makeTask(for item: DownloadItem, options: DownloadOptions) -> any DownloadTaskProtocol {
+        let attempt = UUID()
+        attemptIDs[item.id] = attempt
         let onUpdate: @Sendable (DownloadItem) -> Void = { [weak self] updated in
             Task { @MainActor [weak self] in
+                guard self?.attemptIDs[updated.id] == attempt else { return }
                 self?.applyUpdate(id: updated.id) { _ in updated }
                 try? self?.persistence.save(updated)
             }
