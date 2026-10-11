@@ -1,13 +1,12 @@
 # Local macOS verification — 2026-10-11
 
-Source checkout: `/Users/arcueidpeng/github/VideoDownloader` (clean main at
-`7a1a0f438f774a87d2ac42b5a039c2f5437479d2`). Work was performed in an isolated
-shared clone on the same Mac at
-`/Users/arcueidpeng/github/Codex/2026-10-11/task/VideoDownloader`, based on PR #1
+The original source checkout remained on clean main at
+`7a1a0f438f774a87d2ac42b5a039c2f5437479d2`. Work was performed in an isolated
+shared clone on the user's Mac, based on PR #1
 `bb73d35a2a9a0ca96cefe6a2380977f6e69928cc`. No cloud execution substituted for Mac tests.
-No project AGENTS.md or .agents/skills were present; the user's global AGENTS.md was empty.
+No project AGENTS.md or .agents/skills instructions were present.
 
-Host: Apple Silicon, macOS 26.4.1 (25E253), Swift 6.4, Xcode 27 beta.
+Validation target: native Apple Silicon macOS, Swift 6 toolchain.
 
 ## Observed defects and repairs
 
