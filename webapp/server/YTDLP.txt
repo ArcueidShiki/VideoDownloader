@@ -1,0 +1,48 @@
+Web backend yt-dlp setup and regression checks
+
+Requirements
+  Node.js 22 or newer.
+  Current yt-dlp with its matching yt-dlp-ejs challenge scripts.
+  ffmpeg and ffprobe on the backend process PATH for merging/transcoding.
+
+Official yt-dlp executables bundle EJS. The Unix asset named "yt-dlp" still
+requires Python; the Docker image installs python3 for this reason. For pip
+installations, use: python -m pip install -U "yt-dlp[default]"
+
+Set YTDLP_PATH to an absolute executable path when yt-dlp is not on PATH or
+when a specific installation must be used. The backend explicitly enables
+its own Node executable via --js-runtimes. Restart the backend after changing
+PATH or YTDLP_PATH. The backend ignores external yt-dlp configuration files;
+download options come from the application.
+Multi-video/playlist envelopes use their first entry. Both metadata and download
+commands select --playlist-items 1; an unavailable first entry returns an error
+instead of silently downloading another clip. Nested envelopes are bounded and
+validated before exposing formats.
+
+Checks from this directory
+  npm run test:ytdlp
+    Offline subprocess regression tests; no external tools/media required.
+
+  npm run test:ytdlp-live
+    Opt-in: set YTDLP_PATH to a working executable first. Downloads MDN's
+    small CC0 flower.mp4, verifies progress/final output, and exercises
+    cancellation followed by immediate retry against a loopback server.
+    No account, cookies or authentication is used. Temp downloads are cleaned.
+    Optional YTDLP_EVIDENCE_DIR preserves a copy of the completed CC0 sample.
+
+The existing npm test command exercises the older CRUD API and needs a running
+server. It is separate from these session-based download regression tests.
+
+Troubleshooting
+  Record the affected app (web/Windows/macOS), URL, and full error message.
+  Check the actual executable with --version and --verbose; updating a
+  different installed copy does not update the one the backend launches.
+  A missing binary/Python interpreter, old yt-dlp, missing ffmpeg, and missing
+  JS/EJS dependencies now retain their underlying diagnostics in API errors.
+  Do not treat an unavailable video or an authentication restriction as a
+  downloader integration regression.
+
+Upstream references checked during this fix
+  https://github.com/yt-dlp/yt-dlp#release-files
+  https://github.com/yt-dlp/yt-dlp/wiki/EJS
+  https://github.com/yt-dlp/yt-dlp#embedding-yt-dlp

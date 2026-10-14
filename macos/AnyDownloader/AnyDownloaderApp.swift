@@ -22,6 +22,9 @@ struct AnyDownloaderApp: App {
                         .frame(minWidth: 920, minHeight: 580)
                 }
             }
+            .task {
+                if !(await DependencyStatus.healthIssues()).isEmpty { showSetup = true }
+            }
             // Deep-link entry point. Triggered when Chrome extension (or any other app)
             // opens `anydownloader://download?url=<encoded>&title=<...>`.
             .onOpenURL { url in

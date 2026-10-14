@@ -20,6 +20,7 @@ extension AppUpdateChecker {
 
 struct ContentView: View {
     @Environment(DownloadStore.self) private var store
+    @State private var toolUpdates: [String] = []
     @State private var selectedFilter: FilterTab = .all
     @State private var urlText = ""
     @FocusState private var urlFocused: Bool
@@ -41,6 +42,14 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if !toolUpdates.isEmpty {
+                HStack {
+                    Text("Optional tool updates: " + toolUpdates.joined(separator: ", ") +
+                         ". After downloads finish, run brew upgrade yt-dlp deno in Terminal. No app restart is needed.")
+                        .font(.caption).textSelection(.enabled)
+                    Button("Dismiss") { toolUpdates = [] }
+                }.padding(10).background(Color.accentColor.opacity(0.1))
+            }
             // Update available banner — shown below toolbar when a new version is in the App Store
             if showUpdateBanner, let version = updateChecker.latestVersion {
                 AppUpdateBannerView(
@@ -111,6 +120,7 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .focusURLBar)) { _ in
             urlFocused = true
         }
+        .task { toolUpdates = await DependencyStatus.availableUpdates() }
         .onChange(of: outputDirectory) { _, url in
             UserDefaults.standard.set(url.path, forKey: "outputDirectory")
         }

@@ -12,7 +12,9 @@ public struct YtDlpEngine: DownloadEngineProtocol {
     }
 
     public static func buildArguments(url: String, options: DownloadOptions) -> [String] {
-        var args: [String] = [
+        var args: [String] = runtimeArguments() + [
+            "--ignore-config",
+            "--print", "after_move:__ANYDOWNLOADER_FILE__%(filepath)j",
             "--format", "\(options.quality)/best",
         ]
         // Only force a container when merging is desired.
@@ -41,7 +43,18 @@ public struct YtDlpEngine: DownloadEngineProtocol {
         if options.speedLimitBytesPerSec > 0 {
             args += ["--limit-rate", "\(options.speedLimitBytesPerSec)"]
         }
-        args.append(url)
+        args += ["--", url]
         return args
     }
+    public static func runtimeArguments() -> [String] {
+        var args = [String]()
+        if let deno = DependencyStatus.find("deno") {
+            args += ["--js-runtimes", "deno:\(deno)"]
+        }
+        if let ffmpeg = DependencyStatus.find("ffmpeg") {
+            args += ["--ffmpeg-location", URL(fileURLWithPath: ffmpeg).deletingLastPathComponent().path]
+        }
+        return args
+    }
+
 }

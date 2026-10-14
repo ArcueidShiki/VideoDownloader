@@ -114,7 +114,6 @@ windows/*.wixpdb
 **/*.pdb
 **/bin
 **/.claude
-**/*.md
 **/.env.*
 
 # ── Signing material / code-signing artifacts ────────────────────────────────
@@ -128,5 +127,14 @@ windows/*.wixpdb
 webapp/.env.prod
 webapp/.env.production
 # ── Scripts (kept locally, never committed) ──────────────────────────────────
-**/*.py
-**/*.sh
+
+# Rebuildable local outputs
+macos/.build-app/
+release/
+artifacts/
+*.xcresult/
+*.dmg
+*.app/
+
+__pycache__/
+*.pyc
