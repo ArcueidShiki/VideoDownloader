@@ -13,7 +13,8 @@ public struct URLInfoFetcher {
     ) async throws -> VideoInfo {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: ytDlpPath)
-        proc.arguments = [
+        proc.arguments = YtDlpEngine.runtimeArguments() + [
+            "--ignore-config",
             "--dump-json",
             "--no-playlist",
             "--no-warnings",
@@ -21,7 +22,7 @@ public struct URLInfoFetcher {
             "--retries", "3",
             "--extractor-retries", "3",
             "--user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            url,
+            "--", url,
         ]
 
         let outPipe = Pipe()
@@ -33,34 +34,11 @@ public struct URLInfoFetcher {
         // Ensure ffmpeg is on PATH (needed for some yt-dlp metadata operations)
         proc.environment = YtDlpTask.enrichedEnvironment()
 
-        try proc.run()
-
-        // Read stdout concurrently with process execution to prevent pipe-buffer deadlock.
-        // yt-dlp output for videos with many formats can exceed the ~64 KB pipe buffer; if
-        // we only read inside terminationHandler the subprocess blocks on write() and never exits.
-        let data = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Data, Error>) in
-            let group = DispatchGroup()
-            var stdoutData = Data()
-
-            group.enter()
-            DispatchQueue.global(qos: .utility).async {
-                stdoutData = outPipe.fileHandleForReading.readDataToEndOfFile()
-                group.leave()
-            }
-
-            group.enter()
-            proc.terminationHandler = { _ in group.leave() }
-
-            group.notify(queue: .global(qos: .utility)) {
-                if proc.terminationStatus == 0 {
-                    cont.resume(returning: stdoutData)
-                } else {
-                    let errMsg = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(),
-                                       encoding: .utf8) ?? "unknown error"
-                    cont.resume(throwing: FetchError.ytDlpFailed(errMsg.trimmingCharacters(in: .whitespacesAndNewlines)))
-                }
-            }
+        let output = try await ProcessCapture.run(proc, stdout: outPipe, stderr: errPipe)
+        guard output.status == 0 else {
+            throw FetchError.ytDlpFailed(String(decoding: output.stderr, as: UTF8.self))
         }
+        let data = output.stdout
 
         guard !data.isEmpty else { throw FetchError.invalidJSON }
 

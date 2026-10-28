@@ -109,6 +109,14 @@
                                    MaxWidth="320" />
                     </HyperlinkButton>
                 </Grid>
+                <InfoBar x:Name="DependencyInfoBar" IsOpen="True" IsClosable="False"
+                         Title="Dependencies" Message="Checking for dependency updates..." Severity="Informational">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="CheckDependenciesButton" Content="Check again" Click="CheckDependencies_Click" />
+                        <Button x:Name="RestartDependenciesButton" Content="Restart to install" Visibility="Collapsed" Click="RestartDependencies_Click" />
+                        <Button x:Name="RollbackDependenciesButton" Content="Restore previous version" Visibility="Collapsed" Click="RollbackDependencies_Click" />
+                    </StackPanel>
+                </InfoBar>
             </StackPanel>
         </Border>
 
@@ -424,6 +432,9 @@
                                         Text="{x:Bind StatusText, Mode=OneWay}"
                                         Style="{StaticResource CaptionTextBlockStyle}"
                                         Foreground="{x:Bind StatusBrush, Mode=OneWay}"
+                                        TextWrapping="Wrap"
+                                        MaxLines="6"
+                                        ToolTipService.ToolTip="{x:Bind StatusText, Mode=OneWay}"
                                         TextTrimming="CharacterEllipsis"
                                         VerticalAlignment="Center" />
 

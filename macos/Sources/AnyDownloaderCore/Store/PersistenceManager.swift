@@ -177,6 +177,11 @@ public final class PersistenceManager: Sendable {
     }
 
     public static var defaultPath: String {
+        if let path = ProcessInfo.processInfo.environment["ANYDOWNLOADER_STATE_DIRECTORY"], !path.isEmpty {
+            let dir = URL(fileURLWithPath: path, isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            return dir.appendingPathComponent("downloads.sqlite").path
+        }
         let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask

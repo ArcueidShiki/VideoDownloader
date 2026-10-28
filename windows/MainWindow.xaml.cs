@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Diagnostics;
+using System.Threading;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml.Controls;
@@ -30,6 +32,10 @@ public sealed partial class MainWindow : Window
     // Track which tab button is "selected" for visual styling
     private Button? _selectedTabButton;
     private Microsoft.UI.Xaml.Style? _defaultButtonStyle;
+    private readonly CancellationTokenSource _updateCancellation = new();
+    private bool _updatesStarted;
+    private bool _checkingDependencies;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _updateTimer;
 
     public MainWindow()
     {
@@ -56,6 +62,76 @@ public sealed partial class MainWindow : Window
         // Capture the default button style, then highlight the initial tab
         _defaultButtonStyle = TabAll.Style;
         SelectTab(TabAll);
+        ((FrameworkElement)Content).Loaded += (_, _) =>
+        {
+            if (_updatesStarted) return;
+            _updatesStarted = true;
+            DependencyUpdateCoordinator.MarkHealthy();
+            _ = CheckDependenciesAsync();
+            _updateTimer = DispatcherQueue.CreateTimer();
+            _updateTimer.Interval = TimeSpan.FromSeconds(1);
+            _updateTimer.Tick += (_, _) => UpdateDependencyButtons();
+            _updateTimer.Start();
+        };
+        Closed += (_, _) => { _updateCancellation.Cancel(); _updateTimer?.Stop(); };
+    }
+
+    private async Task CheckDependenciesAsync()
+    {
+        if (_checkingDependencies) return;
+        _checkingDependencies = true;
+        CheckDependenciesButton.IsEnabled = false;
+        DependencyInfoBar.Message = "Checking installed versions and official releases...";
+        DependencyUpdateResult result;
+        try { result = await DependencyUpdateCoordinator.CheckAsync(_updateCancellation.Token); }
+        catch (OperationCanceledException) { result = new("Update check was interrupted; existing dependencies were kept."); }
+        catch (Exception ex) { result = new("Update check could not finish; existing dependencies were kept. " + ex.Message); }
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _checkingDependencies = false;
+            CheckDependenciesButton.IsEnabled = true;
+            DependencyInfoBar.Message = (DependencyUpdateCoordinator.StartupMessage is string startup ? startup + " " : "") + result.Message;
+            DependencyInfoBar.Severity = result.Necessary ? InfoBarSeverity.Warning : InfoBarSeverity.Informational;
+            UpdateDependencyButtons();
+        });
+    }
+
+    private void UpdateDependencyButtons()
+    {
+        RestartDependenciesButton.Visibility = DependencyUpdateCoordinator.Ready ? Visibility.Visible : Visibility.Collapsed;
+        RestartDependenciesButton.IsEnabled = !_checkingDependencies && DependencyUpdateCoordinator.CanRestart(ViewModel.HasActiveOperations);
+        ToolTipService.SetToolTip(RestartDependenciesButton, RestartDependenciesButton.IsEnabled
+            ? "Install staged dependencies after restarting." : "Finish or pause downloads and close other AnyDownloader windows first.");
+        RollbackDependenciesButton.Visibility = DependencyUpdateCoordinator.CanRollback ? Visibility.Visible : Visibility.Collapsed;
+        RollbackDependenciesButton.IsEnabled = !_checkingDependencies;
+    }
+
+    private void CheckDependencies_Click(object sender, RoutedEventArgs e) => _ = CheckDependenciesAsync();
+
+    private void RestartDependencies_Click(object sender, RoutedEventArgs e)
+    {
+        if (_checkingDependencies || !DependencyUpdateCoordinator.Ready ||
+            !DependencyUpdateCoordinator.CanRestart(ViewModel.HasActiveOperations)) return;
+        try
+        {
+            var psi = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false };
+            psi.ArgumentList.Add("--restart-after");
+            psi.ArgumentList.Add(Environment.ProcessId.ToString());
+            Process.Start(psi)?.Dispose();
+            Application.Current.Exit();
+        }
+        catch (Exception ex) { DependencyInfoBar.Message = "Could not restart. Close and reopen the app to install. " + ex.Message; }
+    }
+
+    private void RollbackDependencies_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            DependencyUpdateCoordinator.RequestRollback();
+            DependencyInfoBar.Message = "Previous dependencies are selected. Restart when downloads have stopped to restore them.";
+            UpdateDependencyButtons();
+        }
+        catch (Exception ex) { DependencyInfoBar.Message = "Could not prepare rollback. " + ex.Message; }
     }
 
     private async Task SetIconAsync()

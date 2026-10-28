@@ -24,7 +24,7 @@ public static class MetadataService
 
     /// <summary>
     /// Runs yt-dlp --dump-json and parses the output into a VideoInfoModel.
-    /// Returns null if the URL is not supported by yt-dlp or on parse failure.
+    /// Throws with yt-dlp diagnostics when extraction fails.
     /// </summary>
     public static async Task<VideoInfoModel?> FetchVideoInfoAsync(
         string url,
@@ -33,18 +33,19 @@ public static class MetadataService
     {
         var output = await RunProcessAsync(
             ytDlpPath,
-            new[] { "--dump-json", "--no-playlist", "--quiet", url },
-            ct);
+            new[] { "--dump-single-json", "--no-playlist", "--quiet", "--", url },
+            ct, isYtDlp: true);
 
-        if (string.IsNullOrWhiteSpace(output)) return null;
+        if (string.IsNullOrWhiteSpace(output))
+            throw new InvalidOperationException("yt-dlp returned no video metadata. Check the URL and update yt-dlp.");
 
         try
         {
             return ParseYtDlpJson(output);
         }
-        catch (Exception)
+        catch (JsonException ex)
         {
-            return null;
+            throw new InvalidOperationException("yt-dlp returned invalid video metadata. Update yt-dlp and try again.", ex);
         }
     }
 
@@ -140,7 +141,7 @@ public static class MetadataService
     ///
     /// yt-dlp applies its own platform-specific sanitization to <paramref name="outputTemplate"/>
     /// (e.g. stripping CJK / non-ASCII characters on some versions), so this is the only
-    /// reliable way to predict the final file path.  Returns null on any failure.
+    /// reliable way to predict the final file path. Throws if extraction fails.
     /// </summary>
     /// <param name="ytDlpPath">Path to yt-dlp executable.</param>
     /// <param name="format">Format selector, e.g. "f137" or "f137+f140".</param>
@@ -160,8 +161,8 @@ public static class MetadataService
              "--format",  $"{format}/best",
              "--output",  outputTemplate,
              "--no-playlist",
-             url],
-            ct);
+             "--", url],
+            ct, isYtDlp: true);
 
         return string.IsNullOrWhiteSpace(output) ? null
             : output.Trim().Split('\n', StringSplitOptions.RemoveEmptyEntries)[0].Trim();
@@ -260,8 +261,10 @@ public static class MetadataService
     private static async Task<string> RunProcessAsync(
         string exe,
         string[] args,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool isYtDlp = false)
     {
+        ct.ThrowIfCancellationRequested();
         var psi = new ProcessStartInfo(exe)
         {
             UseShellExecute        = false,
@@ -271,22 +274,25 @@ public static class MetadataService
         };
         foreach (var a in args)
             psi.ArgumentList.Add(a);
-
-        var sb = new StringBuilder();
+        if (isYtDlp) YtDlpIntegration.Configure(psi);
 
         using var proc = new Process { StartInfo = psi };
 
-        // Wire up handlers BEFORE BeginOutputReadLine (required by .NET Process API)
-        var lockObj = new object();
-        proc.OutputDataReceived += (_, e) => { if (e.Data != null) lock (lockObj) sb.AppendLine(e.Data); };
-        proc.ErrorDataReceived  += (_, e) => { /* ignore stderr for metadata */ };
-
         proc.Start();
-        proc.BeginOutputReadLine();
-        proc.BeginErrorReadLine();
-
-        await proc.WaitForExitAsync(ct);
-        return sb.ToString();
+        var stdout = proc.StandardOutput.ReadToEndAsync();
+        var stderr = proc.StandardError.ReadToEndAsync();
+        try { await proc.WaitForExitAsync(ct); }
+        catch (OperationCanceledException)
+        {
+            if (!proc.HasExited) proc.Kill(entireProcessTree: true);
+            await proc.WaitForExitAsync();
+            await Task.WhenAll(stdout, stderr);
+            throw;
+        }
+        await Task.WhenAll(stdout, stderr);
+        if (isYtDlp && proc.ExitCode != 0)
+            throw new InvalidOperationException(YtDlpIntegration.FailureMessage(proc.ExitCode, await stderr));
+        return await stdout;
     }
 
     // ─────────────────────────────────────────────────────

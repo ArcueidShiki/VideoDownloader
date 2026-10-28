@@ -10,6 +10,12 @@ public final class DownloadStore {
     private let validator = InputValidator()
     private let classifier = URLClassifier()
     private var activeTasks: [UUID: any DownloadTaskProtocol] = [:]
+    private var attemptIDs: [UUID: UUID] = [:]
+    private var runIDs: [UUID: UUID] = [:]
+    private var stoppingIDs: Set<UUID> = []
+    @ObservationIgnored var videoInfoFetcher: @Sendable (String) async throws -> VideoInfo = { url in
+        try await URLInfoFetcher.fetch(url: url, ytDlpPath: YtDlpTask.findYtDlp())
+    }
     private var pausedTasks: [UUID: any DownloadTaskProtocol] = [:]
     private let httpEngine = HTTPDownloadEngine()
     private let ytdlpEngine = YtDlpEngine()
@@ -177,12 +183,17 @@ public final class DownloadStore {
     // MARK: - Existing controls
 
     public func pause(id: UUID) async {
+        let attempt = attemptIDs[id]
+        runIDs[id] = UUID() // invalidate errors from the previous start/resume
+        stoppingIDs.insert(id)
+        defer { stoppingIDs.remove(id) }
         // If there's a running task, stop it and preserve the instance for resume().
         // We do NOT return early when there is no task — items can be stuck in .active
         // state after a restart with no corresponding running task. Always update the
         // persisted state so the UI unblocks.
         if let task = activeTasks[id] {
             await task.pause()
+            guard attemptIDs[id] == attempt else { return }
             activeTasks.removeValue(forKey: id)
             pausedTasks[id] = task
         }
@@ -193,19 +204,34 @@ public final class DownloadStore {
     }
 
     public func resume(id: UUID, outputDirectory: URL) {
+        guard !stoppingIDs.contains(id) else { return }
         guard let item = items.first(where: { $0.id == id }) else { return }
         // Reuse the exact same task instance so HTTP completedSegmentSet and
         // yt-dlp/torrent process references are preserved across pause/resume.
         let task = pausedTasks.removeValue(forKey: id)
             ?? makeTask(for: item, options: buildOptions(for: item, outputDirectory: outputDirectory))
         activeTasks[id] = task
-        Task { try? await task.resume() }
+        applyUpdate(id: id) { $0.with(state: .active) }
+        let attempt = attemptIDs[id]
+        let run = UUID()
+        runIDs[id] = run
+        Task {
+            guard attemptIDs[id] == attempt, runIDs[id] == run, items.contains(where: { $0.id == id && $0.state == .active }) else { return }
+            do { try await task.resume() }
+            catch {
+                guard attemptIDs[id] == attempt, runIDs[id] == run,
+                      items.contains(where: { $0.id == id && $0.state == .active }) else { return }
+                applyUpdate(id: id) { $0.with(state: .failed, errorMessage: error.localizedDescription) }
+                if let updated = items.first(where: { $0.id == id }) { try? persistence.save(updated) }
+            }
+        }
     }
 
     /// Restarts a completed or failed download **in-place** — same row, same UUID.
     /// If the item already has video info and a chosen format (yt-dlp), it skips
     /// straight to queued so the format picker doesn't reappear.
     public func restart(id: UUID, outputDirectory: URL) async {
+        attemptIDs[id] = UUID()
         if let task = activeTasks[id] { await task.cancel() }
         if let task = pausedTasks[id]  { await task.cancel() }
         activeTasks.removeValue(forKey: id)
@@ -244,6 +270,7 @@ public final class DownloadStore {
     }
 
     public func cancel(id: UUID) async {
+        attemptIDs[id] = UUID()
         if let task = activeTasks[id] { await task.cancel() }
         if let task = pausedTasks[id]  { await task.cancel() }
         activeTasks.removeValue(forKey: id)
@@ -262,8 +289,13 @@ public final class DownloadStore {
     }
 
     public func remove(id: UUID) {
-        pausedTasks.removeValue(forKey: id)
-        activeTasks.removeValue(forKey: id)
+        attemptIDs[id] = UUID()
+        let paused = pausedTasks.removeValue(forKey: id)
+        let active = activeTasks.removeValue(forKey: id)
+        Task {
+            await active?.cancel()
+            await paused?.cancel()
+        }
         items.removeAll { $0.id == id }
         try? persistence.delete(id: id)
     }
@@ -304,6 +336,9 @@ public final class DownloadStore {
     // MARK: - Private helpers
 
     private func fetchVideoInfo(item: DownloadItem, options: DownloadOptions) async {
+        guard items.contains(where: { $0.id == item.id && $0.state != .failed }) else { return }
+        let attempt = UUID()
+        attemptIDs[item.id] = attempt
         // Return immediately from cache if already fetched for this URL
         if let cached = videoInfoCache[item.url] {
             applyUpdate(id: item.id) {
@@ -313,13 +348,14 @@ public final class DownloadStore {
         }
         applyUpdate(id: item.id) { $0.with(state: .fetchingInfo) }
         do {
-            let ytdlpPath = try YtDlpTask.findYtDlp()
-            let info = try await URLInfoFetcher.fetch(url: item.url, ytDlpPath: ytdlpPath)
+            let info = try await videoInfoFetcher(item.url)
+            guard attemptIDs[item.id] == attempt else { return }
             videoInfoCache[item.url] = info
             applyUpdate(id: item.id) {
                 $0.with(state: .selectingFormat, title: info.title, videoInfo: info)
             }
         } catch {
+            guard attemptIDs[item.id] == attempt else { return }
             applyUpdate(id: item.id) { $0.with(state: .failed, errorMessage: error.localizedDescription) }
         }
     }
@@ -350,7 +386,20 @@ public final class DownloadStore {
         guard activeCount < maxConcurrentTasks else { return }
         let task = makeTask(for: item, options: options)
         activeTasks[item.id] = task
-        Task { try? await task.start() }
+        applyUpdate(id: item.id) { $0.with(state: .active) }
+        let attempt = attemptIDs[item.id]
+        let run = UUID()
+        runIDs[item.id] = run
+        Task {
+            guard attemptIDs[item.id] == attempt, runIDs[item.id] == run, items.contains(where: { $0.id == item.id && $0.state == .active }) else { return }
+            do { try await task.start() }
+            catch {
+                guard attemptIDs[item.id] == attempt, runIDs[item.id] == run,
+                      items.contains(where: { $0.id == item.id && $0.state == .active }) else { return }
+                applyUpdate(id: item.id) { $0.with(state: .failed, errorMessage: error.localizedDescription) }
+                if let updated = items.first(where: { $0.id == item.id }) { try? persistence.save(updated) }
+            }
+        }
     }
 
     private func buildOptions(for item: DownloadItem, outputDirectory: URL) -> DownloadOptions {
@@ -363,10 +412,14 @@ public final class DownloadStore {
     }
 
     private func makeTask(for item: DownloadItem, options: DownloadOptions) -> any DownloadTaskProtocol {
+        let attempt = UUID()
+        attemptIDs[item.id] = attempt
         let onUpdate: @Sendable (DownloadItem) -> Void = { [weak self] updated in
             Task { @MainActor [weak self] in
-                self?.applyUpdate(id: updated.id) { _ in updated }
-                try? self?.persistence.save(updated)
+                guard let self, self.attemptIDs[updated.id] == attempt,
+                      !self.stoppingIDs.contains(updated.id),
+                      self.items.contains(where: { $0.id == updated.id && $0.state == .active }) else { return }
+                self.applyUpdate(id: updated.id) { _ in updated }
             }
         }
         switch item.type {
@@ -379,6 +432,8 @@ public final class DownloadStore {
     private func applyUpdate(id: UUID, transform: (DownloadItem) -> DownloadItem) {
         guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
         items[idx] = transform(items[idx])
+        // Metadata failures and selection state must survive closing the app too.
+        try? persistence.save(items[idx])
     }
 
     // MARK: - Testing helpers (internal — accessible via @testable import)

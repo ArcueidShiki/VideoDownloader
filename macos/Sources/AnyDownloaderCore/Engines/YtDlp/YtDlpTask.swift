@@ -12,6 +12,7 @@ public final class YtDlpTask: DownloadTaskProtocol, @unchecked Sendable {
     private let options: DownloadOptions
     private let onUpdate: @Sendable (DownloadItem) -> Void
     private var process: Process?
+    private var processGroup: pid_t?
     private let lock = NSLock()
     /// Tracks the latest progress so pause() preserves it instead of resetting to 0.
     private var latestProgress: Double = 0
@@ -21,8 +22,10 @@ public final class YtDlpTask: DownloadTaskProtocol, @unchecked Sendable {
     public init(
         item: DownloadItem,
         options: DownloadOptions,
+        executablePath: String? = nil,
         onUpdate: @Sendable @escaping (DownloadItem) -> Void
     ) {
+        self.executableOverride = executablePath
         self.itemID = item.id
         self.item = item
         self.options = options
@@ -31,147 +34,117 @@ public final class YtDlpTask: DownloadTaskProtocol, @unchecked Sendable {
     }
 
     public func start() async throws {
-        let ytdlpPath = try Self.findYtDlp()
-        let args = YtDlpEngine.buildArguments(url: item.url, options: options)
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: ytdlpPath)
-        proc.arguments = args
-        proc.currentDirectoryURL = options.outputDirectory
-        proc.environment = YtDlpTask.enrichedEnvironment()
-
-        let pipe = Pipe()
-        proc.standardOutput = pipe
-        proc.standardError = pipe
-        lock.withLock {
-            process = proc
+        guard lock.withLock({ () -> Bool in
+            guard !running else { return false }
+            running = true
             wasInterrupted = false
+            return true
+        }) else {
+            throw NSError(domain: "YtDlp", code: 3, userInfo: [NSLocalizedDescriptionKey:
+                "The previous download is still stopping. Wait for it to finish before retrying."])
         }
-
-        onUpdate(item.with(state: .active, progress: latestProgress))
-        try proc.run()
-
-        let handle = pipe.fileHandleForReading
-        let updateItem = item
-        let updateCallback = onUpdate
-        let titleBox    = _TitleBox()
-        let filePathBox = _TitleBox()   // tracks the final output file path
-
-        // Pre-seed filePath from what we already know in memory:
-        // customFilename is exact; videoInfo title gives an approximate path.
-        // yt-dlp output lines (Destination / already-downloaded / Merger) override this if present.
-        if let customFilename = options.customFilename {
-            filePathBox.value = options.outputDirectory
-                .appendingPathComponent(customFilename).path
-        } else if let title = item.videoInfo?.title ?? item.title {
-            let ext = (options.format == "native" || options.format.isEmpty) ? "mp4" : options.format
-            let sanitized = YtDlpTask.sanitizeFilename(title)
-            filePathBox.value = options.outputDirectory
-                .appendingPathComponent("\(sanitized).\(ext)").path
-        }
-        let progressBox = _ProgressBox(initial: latestProgress)
-
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            handle.readabilityHandler = { [weak self] fh in
-                let data = fh.availableData
-                guard !data.isEmpty else { return }
-                let output = String(data: data, encoding: .utf8) ?? ""
-                for line in output.components(separatedBy: "\n") {
-                    // "[download] Destination: /path/to/file.mp4"  — initial destination
-                    if line.contains("[download] Destination:"),
-                       let range = line.range(of: "[download] Destination: ") {
-                        let fullPath = String(line[range.upperBound...])
-                            .trimmingCharacters(in: .whitespacesAndNewlines)
-                        filePathBox.value = fullPath
-                        if titleBox.value == nil {
-                            let title = URL(fileURLWithPath: fullPath)
-                                .deletingPathExtension().lastPathComponent
-                            titleBox.value = title
-                            updateCallback(updateItem.with(state: .active, progress: progressBox.value,
-                                                           title: title))
-                        }
+        defer { lock.withLock { running = false; process = nil; processGroup = nil } }
+        do {
+            let ytdlpPath = try executableOverride ?? Self.findYtDlp()
+            try FileManager.default.createDirectory(at: options.outputDirectory, withIntermediateDirectories: true)
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: ytdlpPath)
+            proc.arguments = YtDlpEngine.buildArguments(url: item.url, options: options)
+            proc.currentDirectoryURL = options.outputDirectory
+            proc.environment = Self.enrichedEnvironment()
+            proc.standardInput = FileHandle.nullDevice
+            let stdout = Pipe(), stderr = Pipe()
+            proc.standardOutput = stdout
+            proc.standardError = stderr
+            let finalPath = _TitleBox()
+            let output = try await ProcessCapture.run(proc, stdout: stdout, stderr: stderr, launch: { [self] in
+                try lock.withLock {
+                    guard !wasInterrupted else { throw CancellationError() }
+                    process = proc
+                    try proc.run()
+                    // Foundation creates a separate process group on macOS. Verify
+                    // ownership before ever signalling a negative PID.
+                    let pid = proc.processIdentifier
+                    guard getpgid(pid) == pid, pid != getpgrp() else {
+                        proc.terminate()
+                        throw NSError(domain: "YtDlp", code: 4, userInfo: [NSLocalizedDescriptionKey:
+                            "Could not isolate the download process group."])
                     }
-                    // "[download] /path/to/file.mp4 has already been downloaded"
-                    if let path = YtDlpTask.parseAlreadyDownloadedPath(line) {
-                        filePathBox.value = path
-                        if titleBox.value == nil {
-                            let title = URL(fileURLWithPath: path)
-                                .deletingPathExtension().lastPathComponent
-                            titleBox.value = title
-                            updateCallback(updateItem.with(state: .active, progress: 1.0, title: title))
-                        }
+                    processGroup = pid
+                    onUpdate(item.with(state: .active, progress: latestProgress))
+                }
+            }) { [self] line in
+                lock.withLock {
+                    guard !wasInterrupted else { return }
+                    let marker = "__ANYDOWNLOADER_FILE__"
+                    if line.hasPrefix(marker),
+                       let data = String(line.dropFirst(marker.count)).data(using: .utf8),
+                       let path = try? JSONDecoder().decode(String.self, from: data) {
+                        finalPath.value = path
                     }
-                    // "[Merger] Merging formats into "final.mp4"" — overrides destination
-                    if line.contains("[Merger] Merging formats into"),
-                       let start = line.range(of: "\""),
-                       let end   = line.range(of: "\"", options: .backwards) {
-                        let merged = String(line[start.upperBound..<end.lowerBound])
-                            .trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !merged.isEmpty { filePathBox.value = merged }
-                    }
-                    if let update = YtDlpTask.parseProgress(line) {
-                        progressBox.value = update.progress
-                        self?.lock.withLock { self?.latestProgress = update.progress }
-                        updateCallback(updateItem.with(
-                            state: .active,
-                            progress: update.progress,
-                            speedBytesPerSec: update.speedBytesPerSec,
-                            etaSeconds: update.etaSeconds,
-                            title: titleBox.value
-                        ))
+                    if let update = Self.parseProgress(line) {
+                        latestProgress = update.progress
+                        onUpdate(item.with(state: .active, progress: update.progress,
+                                           speedBytesPerSec: update.speedBytesPerSec, etaSeconds: update.etaSeconds))
                     }
                 }
             }
-            proc.terminationHandler = { _ in
-                handle.readabilityHandler = nil
-                continuation.resume()
+            guard !lock.withLock({ wasInterrupted }) else { return }
+            guard output.status == 0 else {
+                let message = String(decoding: output.stderr, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+                throw NSError(domain: "YtDlp", code: Int(output.status), userInfo: [NSLocalizedDescriptionKey:
+                    message.isEmpty ? "yt-dlp exited with code \(output.status)" : message])
+            }
+            guard let path = finalPath.value,
+                  let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+                  attributes[.type] as? FileAttributeType == .typeRegular,
+                  (attributes[.size] as? NSNumber)?.int64Value ?? 0 > 0 else {
+                throw NSError(domain: "YtDlp", code: 2, userInfo: [NSLocalizedDescriptionKey:
+                    "yt-dlp did not produce a non-empty output file. Retry or choose another format."])
+            }
+            onUpdate(item.with(state: .completed, progress: 1, filePath: path))
+        } catch {
+            if !lock.withLock({ wasInterrupted }) {
+                onUpdate(item.with(state: .failed, errorMessage: error.localizedDescription))
             }
         }
+    }
 
-        let interrupted = lock.withLock { wasInterrupted }
-        if interrupted { return } // pause/cancel already published state
+    private var running = false
+    private let executableOverride: String?
 
-        if proc.terminationStatus == 0 {
-            // Build the absolute file path from what yt-dlp reported.
-            // filePathBox.value is normally already absolute (--output uses the full dir path),
-            // but guard against a bare filename just in case.
-            let finalPath: String? = filePathBox.value.map { captured in
-                captured.hasPrefix("/")
-                    ? captured
-                    : options.outputDirectory.appendingPathComponent(captured).path
+    private func stop() async {
+        let group = lock.withLock { () -> pid_t? in
+            wasInterrupted = true
+            if let processGroup { kill(-processGroup, SIGINT) }
+            return processGroup
+        }
+        // A descendant (for example FFmpeg) may keep writing and retain both
+        // pipes after the extractor exits. Signal the verified owned group even
+        // when Process.isRunning is false, and never treat a deadline as EOF.
+        var tick = 0
+        while lock.withLock({ running }) {
+            if let group {
+                if tick == 30 { kill(-group, SIGTERM) }
+                if tick >= 60 && tick % 30 == 0 { kill(-group, SIGKILL) }
             }
-            onUpdate(item.with(state: .completed, progress: 1.0, filePath: finalPath))
-        } else {
-            onUpdate(item.with(state: .failed,
-                               errorMessage: "yt-dlp exited with code \(proc.terminationStatus)"))
+            tick += 1
+            try? await Task.sleep(for: .milliseconds(100))
         }
     }
 
     public func pause() async {
-        lock.withLock {
-            wasInterrupted = true
-            process?.interrupt()
-        }
-        onUpdate(item.with(state: .paused, progress: latestProgress,
-                           speedBytesPerSec: 0))
+        await stop()
+        onUpdate(item.with(state: .paused, progress: lock.withLock { latestProgress }, speedBytesPerSec: 0))
     }
 
     public func resume() async throws {
-        // Wait for the previous process (sent SIGINT during pause) to fully exit before
-        // spawning a new one. Without this, two yt-dlp instances can write to the same
-        // .part files simultaneously, producing a corrupted merged output.
-        if let old = lock.withLock({ process }), old.isRunning {
-            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-                DispatchQueue.global().async { old.waitUntilExit(); cont.resume() }
-            }
-        }
+        await stop()
         try await start()
     }
 
     public func cancel() async {
-        lock.withLock {
-            wasInterrupted = true
-            process?.terminate()
-        }
+        await stop()
         onUpdate(item.with(state: .failed, errorMessage: "Cancelled"))
     }
 
@@ -245,20 +218,19 @@ public final class YtDlpTask: DownloadTaskProtocol, @unchecked Sendable {
         var env = ProcessInfo.processInfo.environment
         let brewBin = FileManager.default.fileExists(atPath: "/opt/homebrew/bin")
             ? "/opt/homebrew/bin" : "/usr/local/bin"
+        let resources = Bundle.main.resourceURL?.path ?? ""
         let current = env["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
         if !current.contains(brewBin) {
             env["PATH"] = "\(brewBin):/usr/local/bin:\(current)"
         }
+        env["PATH"] = "\(resources):\(env["PATH"] ?? current)"
         return env
     }
 
     static func findYtDlp() throws -> String {
-        if let p = Bundle.main.resourceURL?.appendingPathComponent("yt-dlp").path,
-           FileManager.default.fileExists(atPath: p) { return p }
-        let candidates = ["/opt/homebrew/bin/yt-dlp", "/usr/local/bin/yt-dlp", "/usr/bin/yt-dlp"]
-        guard let path = candidates.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
+        guard let path = DependencyStatus.find("yt-dlp") else {
             throw NSError(domain: "YtDlp", code: 1,
-                          userInfo: [NSLocalizedDescriptionKey: "yt-dlp not found. Install with: brew install yt-dlp"])
+                          userInfo: [NSLocalizedDescriptionKey: "yt-dlp not found. Install with: brew install yt-dlp deno ffmpeg"])
         }
         return path
     }

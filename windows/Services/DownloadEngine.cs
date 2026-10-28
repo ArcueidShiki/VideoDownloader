@@ -79,6 +79,8 @@ public static class DownloadEngine
         if (speedLimitBytesPerSec > 0)
             args.AddRange(["--limit-rate", speedLimitBytesPerSec.ToString()]);
 
+        args.AddRange(YtDlpIntegration.OutputArguments);
+        args.Add("--");
         args.Add(url);
         return args.ToArray();
     }
@@ -167,6 +169,7 @@ public static class DownloadEngine
     {
         var psi = BuildPsi(ytDlpPath, args);
         EnrichPath(psi);
+        YtDlpIntegration.Configure(psi);
 
         var proc = new Process { StartInfo = psi };
         proc.OutputDataReceived += (_, e) => { if (e.Data is not null) onOutput(e.Data); };
@@ -217,6 +220,8 @@ public static class DownloadEngine
 
     public static YtDlpProgressUpdate? ParseYtDlpProgress(string line)
     {
+        if (line.StartsWith(YtDlpIntegration.ProgressPrefix, StringComparison.Ordinal))
+            return YtDlpIntegration.ParseProgress(line);
         if (!line.Contains("[download]") || !line.Contains('%')) return null;
 
         var m = _ytDlpProgressRegex.Match(line);

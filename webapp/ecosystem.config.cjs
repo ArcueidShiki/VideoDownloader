@@ -13,7 +13,7 @@
  * Runtime config (PORT, FRONTEND_ORIGIN, etc.) is loaded from the .env file
  * written by deploy.sh — never hardcode secrets here.
  *
- * Requires Node 20.6+ for the --env-file flag.
+ * Requires Node 22+ for yt-dlp JavaScript challenges and the --env-file flag.
  */
 
 const path = require('path');

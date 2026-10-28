@@ -6,8 +6,11 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "test": "node --test test/e2e.test.js"
+    "test": "node --test test/e2e.test.js",
+    "test:ytdlp": "node --test test/downloader.test.js utils/ytdlp.test.js",
+    "test:ytdlp-live": "node --test test/ytdlp-live.test.js"
   },
+  "engines": { "node": ">=22" },
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",

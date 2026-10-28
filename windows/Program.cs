@@ -1,5 +1,7 @@
 using System;
 using Microsoft.UI.Xaml;
+using System.Diagnostics;
+using AnyDownloader.Windows.Services;
 
 namespace AnyDownloader.Windows;
 
@@ -21,6 +23,12 @@ internal static class Program
     [STAThread]
     static void Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--restart-after" && int.TryParse(args[1], out var parentId))
+        {
+            try { using var parent = Process.GetProcessById(parentId); if (!parent.WaitForExit(30_000)) return; }
+            catch (ArgumentException) { /* parent already exited */ }
+        }
+        DependencyUpdateCoordinator.Initialize();
         // Self-contained: runtime DLLs are already in the output folder.
         // They are loaded by Windows automatically — no bootstrap call needed.
         Application.Start(_ => new App());
