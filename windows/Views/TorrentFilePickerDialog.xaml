@@ -1,0 +1,121 @@
+<ContentDialog
+    x:Class="AnyDownloader.Windows.Views.TorrentFilePickerDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:AnyDownloader.Windows.Models"
+    Title="Select Files to Download"
+    PrimaryButtonText="Download"
+    CloseButtonText="Cancel"
+    DefaultButton="Primary">
+
+    <StackPanel Spacing="12" Padding="4,0,4,4" MinWidth="480">
+
+        <!-- ── File list ─────────────────────────────────── -->
+        <StackPanel Spacing="6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Text="Files in torrent"
+                           Style="{StaticResource BodyStrongTextBlockStyle}"
+                           VerticalAlignment="Center" />
+
+                <Button Grid.Column="1"
+                        Content="All"
+                        FontSize="11"
+                        Padding="8,3,8,3"
+                        Margin="0,0,6,0"
+                        Click="SelectAll_Click" />
+
+                <Button Grid.Column="2"
+                        Content="None"
+                        FontSize="11"
+                        Padding="8,3,8,3"
+                        Click="DeselectAll_Click" />
+            </Grid>
+
+            <!-- File entries with checkboxes -->
+            <ListView x:Name="FileList"
+                      MaxHeight="280"
+                      SelectionMode="None"
+                      BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="models:TorrentFileEntry">
+                        <Grid Padding="4,6,4,6" ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <CheckBox Grid.Column="0"
+                                      IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
+                                      VerticalAlignment="Center" />
+
+                            <TextBlock Grid.Column="1"
+                                       Text="{x:Bind ShortName}"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"
+                                       ToolTipService.ToolTip="{x:Bind DisplayPath}" />
+
+                            <TextBlock Grid.Column="2"
+                                       Text="{x:Bind DisplaySize}"
+                                       Opacity="0.5"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       VerticalAlignment="Center"
+                                       MinWidth="64"
+                                       TextAlignment="Right" />
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <!-- Total size summary -->
+            <TextBlock x:Name="TotalSizeText"
+                       Style="{StaticResource CaptionTextBlockStyle}"
+                       Opacity="0.7"
+                       HorizontalAlignment="Right" />
+        </StackPanel>
+
+        <NavigationViewItemSeparator />
+
+        <!-- ── Output folder ─────────────────────────────── -->
+        <StackPanel Spacing="6">
+            <TextBlock Text="Save to" Style="{StaticResource BodyStrongTextBlockStyle}" />
+
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <FontIcon Grid.Column="0"
+                          Glyph="&#xE8B7;"
+                          FontSize="14"
+                          Opacity="0.6"
+                          VerticalAlignment="Center" />
+
+                <TextBlock x:Name="OutputDirText"
+                           Grid.Column="1"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Opacity="0.7"
+                           Style="{StaticResource CaptionTextBlockStyle}" />
+
+                <Button Grid.Column="2"
+                        Content="Change…"
+                        FontSize="12"
+                        Padding="8,4,8,4"
+                        Click="ChangeOutputDir_Click" />
+            </Grid>
+        </StackPanel>
+
+    </StackPanel>
+</ContentDialog>

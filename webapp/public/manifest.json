@@ -1,0 +1,19 @@
+{
+  "name": "VideoDownloader",
+  "short_name": "VideoDownloader",
+  "description": "Free online video downloader — 1000+ sites, no account required",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#070b12",
+  "theme_color": "#070b12",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["utilities", "productivity"],
+  "lang": "en"
+}

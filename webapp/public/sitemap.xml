@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Submit this sitemap to Google Search Console and Bing Webmaster Tools -->
+<urlset
+  xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml"
+>
+  <url>
+    <loc>https://videos-downloads.com/</loc>
+    <!-- hreflang for multilingual SEO — all point to same SPA URL since locale is client-side -->
+    <xhtml:link rel="alternate" hreflang="en"       href="https://videos-downloads.com/"/>
+    <xhtml:link rel="alternate" hreflang="zh-CN"    href="https://videos-downloads.com/"/>
+    <xhtml:link rel="alternate" hreflang="zh-TW"    href="https://videos-downloads.com/"/>
+    <xhtml:link rel="alternate" hreflang="ja"       href="https://videos-downloads.com/"/>
+    <xhtml:link rel="alternate" hreflang="es"       href="https://videos-downloads.com/"/>
+    <xhtml:link rel="alternate" hreflang="fr"       href="https://videos-downloads.com/"/>
+    <xhtml:link rel="alternate" hreflang="de"       href="https://videos-downloads.com/"/>
+    <xhtml:link rel="alternate" hreflang="ar"       href="https://videos-downloads.com/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://videos-downloads.com/"/>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

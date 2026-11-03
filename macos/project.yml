@@ -1,0 +1,55 @@
+name: AnyDownloader
+options:
+  bundleIdPrefix: com.anydownloader
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+packages:
+  AnyDownloaderCore:
+    path: .
+targets:
+  AnyDownloader:
+    type: application
+    platform: macOS
+    sources:
+      - AnyDownloader
+    resources:
+      - path: AnyDownloader/Resources
+        type: folder
+    postBuildScripts:
+      - name: Bundle and Sign yt-dlp + aria2c
+        inputFiles:
+          - $(SRCROOT)/Binaries/yt-dlp
+          - $(SRCROOT)/Binaries/aria2c
+          - $(SRCROOT)/Binaries/ffmpeg
+          - $(SRCROOT)/Binaries/ffprobe
+        outputFiles:
+          - $(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/yt-dlp
+          - $(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/aria2c
+          - $(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/ffmpeg
+          - $(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/ffprobe
+        script: |
+          RDIR="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources"
+          SRCDIR="${SRCROOT}/Binaries"
+          for BIN in yt-dlp aria2c ffmpeg ffprobe; do
+            SRC="$SRCDIR/$BIN"
+            DEST="$RDIR/$BIN"
+            if [ -f "$SRC" ]; then
+              cp -f "$SRC" "$DEST"
+              chmod +x "$DEST"
+              codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" \
+                "$DEST" 2>/dev/null || true
+            fi
+          done
+    dependencies:
+      - package: AnyDownloaderCore
+        product: AnyDownloaderCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.anydownloader.app
+        SWIFT_VERSION: "6.0"
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        INFOPLIST_FILE: AnyDownloader/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_ENTITLEMENTS: AnyDownloader/AnyDownloader.entitlements

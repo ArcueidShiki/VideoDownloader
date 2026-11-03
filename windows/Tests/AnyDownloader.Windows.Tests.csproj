@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- No UseWinUI, WinAppSDK or MSIX tooling. ViewModel tests use explicit
+         headless UI/persistence adapters; actual screens are tested separately. -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Suppress the win10-* RID warnings from the SDK -->
+    <NoWarn>$(NoWarn);NETSDK1083</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk"    Version="17.9.0" />
+    <PackageReference Include="xunit"                     Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio"  Version="2.8.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="coverlet.collector"        Version="6.0.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
+  </ItemGroup>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       Link production sources and use headless adapters for the ViewModel.
+       Avoid referencing the application's WinUI / MSIX project.
+       ══════════════════════════════════════════════════════════════════ -->
+  <ItemGroup>
+    <!-- Shared enums: DownloadType, DownloadState, FilterTab -->
+    <Compile Include="..\Models\DownloadEnums.cs" />
+    <!-- Plain model records: VideoInfoModel, FormatSelection, TorrentSelection, etc. -->
+    <Compile Include="..\Models\VideoInfoModel.cs" />
+    <Compile Include="..\Models\DownloadItemModel.cs" />
+    <Compile Include="..\ViewModels\DownloadViewModel.cs" />
+    <!-- Pure-logic services (no WinUI3 imports) -->
+    <Compile Include="..\Services\UrlClassifier.cs" />
+    <Compile Include="..\Services\DownloadEngine.cs" />
+    <Compile Include="..\Services\DownloadProcessRegistry.cs" />
+    <Compile Include="..\Services\YtDlpIntegration.cs" />
+    <Compile Include="..\Services\YtDlpRunTracker.cs" />
+    <Compile Include="..\Services\DependencyUpdatePolicy.cs" />
+    <Compile Include="..\Services\DependencyUpdateStore.cs" />
+    <Compile Include="..\Services\DependencyUpdater.cs" />
+    <Compile Include="..\Services\DependencyUpdateCoordinator.cs" />
+    <Compile Include="..\Services\AppSettings.cs" />
+    <Compile Include="..\Services\BinaryResolver.cs" />
+    <Compile Include="..\Services\ToolsInstaller.cs" />
+    <Compile Include="..\Services\DownloadNamingService.cs" />
+    <Compile Include="..\Services\MetadataService.cs" />
+  </ItemGroup>
+
+</Project>
