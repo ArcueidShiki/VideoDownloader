@@ -32,6 +32,20 @@ struct YtDlpTaskTests {
         #expect(!url.contains("&&"))
     }
 
+    // Bilibili's overseas CDN (Tencent EdgeOne) answers any media GET that lacks a
+    // Range header with HTTP 567 "Restricted Access". Chunked downloads make yt-dlp
+    // send `Range: bytes=…` on every request, which the CDN accepts.
+    @Test("forces ranged (chunked) HTTP requests so Bilibili CDN does not return 567")
+    func forcesRangedRequests() {
+        let url = "https://www.bilibili.com/video/BV17Uxe6ZEyP/"
+        let args = YtDlpEngine.buildArguments(url: url, options: DownloadOptions(outputDirectory: URL(fileURLWithPath: "/tmp")))
+        let index = args.firstIndex(of: "--http-chunk-size")
+        #expect(index != nil)
+        if let index { #expect(args[index + 1] == YtDlpEngine.httpChunkSize) }
+        // Options must stay before the "--" URL terminator.
+        if let index, let terminator = args.firstIndex(of: "--") { #expect(index < terminator) }
+    }
+
     @Test("ETA parser handles hours")
     func etaHours() {
         #expect(YtDlpTask.parseETA("02:30:45") == 9045)

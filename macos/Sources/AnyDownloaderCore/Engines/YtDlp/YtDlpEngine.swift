@@ -11,6 +11,12 @@ public struct YtDlpEngine: DownloadEngineProtocol {
         YtDlpTask(item: item, options: options, onUpdate: onUpdate)
     }
 
+    /// Chunked downloads make yt-dlp send `Range: bytes=…` on every media request.
+    /// Bilibili's overseas CDN (Tencent EdgeOne, e.g. upos-sz-mirrorcosov.bilivideo.com)
+    /// rejects range-less GETs with HTTP 567 "Restricted Access". Servers that ignore
+    /// Range simply reply 200, so this is safe for every site.
+    public static let httpChunkSize = "10M"
+
     public static func buildArguments(url: String, options: DownloadOptions) -> [String] {
         var args: [String] = runtimeArguments() + [
             "--ignore-config",
@@ -35,6 +41,7 @@ public struct YtDlpEngine: DownloadEngineProtocol {
             "--fragment-retries", "10",     // retry failed fragment fetches
             "--extractor-retries", "3",     // retry extractor on network errors
             "--socket-timeout", "30",       // don't hang indefinitely
+            "--http-chunk-size", httpChunkSize, // always send Range (Bilibili CDN 567)
             "--user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         ]
         if options.downloadSubtitles {

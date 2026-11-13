@@ -25,6 +25,14 @@ public static class DownloadEngine
     // ─────────────────────────────────────────────────────
 
     /// <summary>
+    /// Chunked downloads make yt-dlp send "Range: bytes=…" on every media request.
+    /// Bilibili's overseas CDN (Tencent EdgeOne, e.g. upos-sz-mirrorcosov.bilivideo.com)
+    /// rejects range-less GETs with HTTP 567 "Restricted Access". Servers that ignore
+    /// Range simply reply 200, so this is safe for every site.
+    /// </summary>
+    public const string HttpChunkSize = "10M";
+
+    /// <summary>
     /// Builds yt-dlp arguments for a download.
     /// Mirrors macOS YtDlpEngine.buildArguments().
     /// </summary>
@@ -71,6 +79,7 @@ public static class DownloadEngine
             "--no-playlist",
             "--continue",
             "--concurrent-fragments", "1",
+            "--http-chunk-size",      HttpChunkSize,
         ]);
 
         if (downloadSubtitles)

@@ -25,6 +25,20 @@ public class DownloadEngineTests
         Assert.Contains("--continue", args);
     }
 
+    // Bilibili's overseas CDN (Tencent EdgeOne) answers any media GET that lacks a
+    // Range header with HTTP 567 "Restricted Access". Chunked downloads make yt-dlp
+    // send "Range: bytes=…" on every request, which the CDN accepts.
+    [Fact]
+    public void BuildYtDlpArgs_ForcesRangedRequests_ForBilibiliCdn()
+    {
+        var args = DownloadEngine.BuildYtDlpArgs("https://www.bilibili.com/video/BV17Uxe6ZEyP/");
+
+        var idx = Array.IndexOf(args, "--http-chunk-size");
+        Assert.True(idx >= 0, "--http-chunk-size missing");
+        Assert.Equal(DownloadEngine.HttpChunkSize, args[idx + 1]);
+        Assert.True(idx < Array.IndexOf(args, "--"), "option must precede the URL terminator");
+    }
+
     [Fact]
     public void BuildYtDlpArgs_WithCustomQuality_PassesQualityFlag()
     {
