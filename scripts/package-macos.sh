@@ -4,9 +4,12 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 # A local app uses tools already installed on this Mac; no Homebrew dylibs copied.
 # Set OUTPUT_DIR outside the checkout to preserve the deliverable during cleanup.
 OUT=${OUTPUT_DIR:-"$ROOT/release"}
+# Universal (Apple silicon + Intel) by default; MACOS_ARCHS=arm64 for a faster local build.
+ARCHS=${MACOS_ARCHS:-"arm64 x86_64"}
 mkdir -p "$OUT"
 xcodebuild -project "$ROOT/macos/AnyDownloader.xcodeproj" -scheme AnyDownloader \
   -configuration Release -derivedDataPath "$ROOT/macos/.build-app" \
+  ARCHS="$ARCHS" ONLY_ACTIVE_ARCH=NO \
   CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= build
 APP="$ROOT/macos/.build-app/Build/Products/Release/AnyDownloader.app"
 EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist")

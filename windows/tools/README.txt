@@ -1,11 +1,11 @@
 Windows x64 bundled tools - verified 2026-10-06 (app 1.1.0)
 
 Bundled dependencies (executables are build artifacts, excluded from git):
-yt-dlp 2026.08.19: https://github.com/yt-dlp/yt-dlp/releases/tag/2026.08.19
-Deno 2.9.7: https://github.com/denoland/deno/releases/tag/v2.9.7
-FFmpeg/ffprobe N-127203-ga35c879992-20261005:
-https://github.com/BtbN/FFmpeg-Builds/releases/tag/latest
-aria2 1.37.0: https://github.com/aria2/aria2/releases/tag/release-1.37.0
+scripts/build-windows.ps1 downloads these into this folder and verifies SHA-256:
+yt-dlp: latest stable (checked against upstream SHA2-256SUMS)
+Deno: latest stable (checked against upstream .sha256sum)
+FFmpeg/ffprobe: BtbN latest win64-gpl (checked against upstream checksums.sha256)
+aria2 1.37.0: https://github.com/aria2/aria2/releases/tag/release-1.37.0 (hash pinned in script)
 
 yt-dlp's official Windows executable includes its EJS scripts. Deno is selected
 explicitly so JavaScript-dependent extraction works without a system runtime.
