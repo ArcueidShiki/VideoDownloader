@@ -120,7 +120,12 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .focusURLBar)) { _ in
             urlFocused = true
         }
-        .task { toolUpdates = await DependencyStatus.availableUpdates() }
+        .task {
+            // Let the managed yt-dlp finish updating first so the banner doesn't
+            // announce a yt-dlp update that is already being installed.
+            await ManagedYtDlp.ensureUpdated()
+            toolUpdates = await DependencyStatus.availableUpdates()
+        }
         .onChange(of: outputDirectory) { _, url in
             UserDefaults.standard.set(url.path, forKey: "outputDirectory")
         }

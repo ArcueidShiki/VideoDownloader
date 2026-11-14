@@ -96,6 +96,10 @@ public struct DependencyStatus: Sendable {
            FileManager.default.isExecutableFile(atPath: bundled) {
             return bundled
         }
+        // App-managed, auto-updated yt-dlp beats a possibly stale Homebrew copy.
+        if name == "yt-dlp", let managed = YtDlpUpdater().currentExecutable {
+            return managed
+        }
         let candidates: [String]
         switch name {
         case "aria2c":

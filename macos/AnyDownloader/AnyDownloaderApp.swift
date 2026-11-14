@@ -23,6 +23,8 @@ struct AnyDownloaderApp: App {
                 }
             }
             .task {
+                // Start the managed yt-dlp update right away; it runs in parallel with the health check.
+                Task.detached(priority: .utility) { await ManagedYtDlp.ensureUpdated() }
                 if !(await DependencyStatus.healthIssues()).isEmpty { showSetup = true }
             }
             // Deep-link entry point. Triggered when Chrome extension (or any other app)
