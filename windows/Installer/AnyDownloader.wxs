@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="AnyDownloader"
-           Manufacturer="AnyDownloader"
+  <Package Name="VideoDownloader"
+           Manufacturer="VideoDownloader"
            Version="1.0.0"
            UpgradeCode="8273A615-3276-4E24-B513-81702C1ABC98"
            Compressed="yes">
@@ -9,7 +9,7 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
-    <Feature Id="ProductFeature" Title="AnyDownloader" Level="1">
+    <Feature Id="ProductFeature" Title="VideoDownloader" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
       <ComponentGroupRef Id="ToolComponents" />
     </Feature>
@@ -17,10 +17,10 @@
 
   <Fragment>
     <StandardDirectory Id="ProgramFilesFolder">
-      <Directory Id="INSTALLFOLDER" Name="AnyDownloader" />
+      <Directory Id="INSTALLFOLDER" Name="VideoDownloader" />
     </StandardDirectory>
     <StandardDirectory Id="ProgramMenuFolder">
-      <Directory Id="ApplicationProgramsFolder" Name="AnyDownloader" />
+      <Directory Id="ApplicationProgramsFolder" Name="VideoDownloader" />
     </StandardDirectory>
     <StandardDirectory Id="DesktopFolder" />
   </Fragment>
@@ -29,15 +29,15 @@
     <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
       <Component Id="MainExe" Guid="*">
         <File Id="MainExeFile"
-              Source="..\publish\$(var.Arch)\AnyDownloader.Windows.exe"
+              Source="..\publish\$(var.Arch)\VideoDownloader.exe"
               KeyPath="yes">
           <Shortcut Id="StartMenuShortcut"
-                    Name="AnyDownloader"
+                    Name="VideoDownloader"
                     WorkingDirectory="INSTALLFOLDER"
                     Directory="ApplicationProgramsFolder"
                     Advertise="yes" />
           <Shortcut Id="DesktopShortcut"
-                    Name="AnyDownloader"
+                    Name="VideoDownloader"
                     WorkingDirectory="INSTALLFOLDER"
                     Directory="DesktopFolder"
                     Advertise="yes" />

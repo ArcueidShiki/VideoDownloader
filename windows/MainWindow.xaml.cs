@@ -40,7 +40,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        Title = "AnyDownloader";
+        Title = "VideoDownloader";
 
         // Set minimum window size
         AppWindow.Resize(new WinGraphics.SizeInt32(920, 620));
@@ -101,7 +101,7 @@ public sealed partial class MainWindow : Window
         RestartDependenciesButton.Visibility = DependencyUpdateCoordinator.Ready ? Visibility.Visible : Visibility.Collapsed;
         RestartDependenciesButton.IsEnabled = !_checkingDependencies && DependencyUpdateCoordinator.CanRestart(ViewModel.HasActiveOperations);
         ToolTipService.SetToolTip(RestartDependenciesButton, RestartDependenciesButton.IsEnabled
-            ? "Install staged dependencies after restarting." : "Finish or pause downloads and close other AnyDownloader windows first.");
+            ? "Install staged dependencies after restarting." : "Finish or pause downloads and close other VideoDownloader windows first.");
         RollbackDependenciesButton.Visibility = DependencyUpdateCoordinator.CanRollback ? Visibility.Visible : Visibility.Collapsed;
         RollbackDependenciesButton.IsEnabled = !_checkingDependencies;
     }

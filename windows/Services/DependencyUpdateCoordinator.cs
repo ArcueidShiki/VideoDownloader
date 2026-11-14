@@ -34,7 +34,7 @@ public static class DependencyUpdateCoordinator
                 return;
             }
             if (OtherAppIsRunning())
-                StartupMessage = "Another AnyDownloader window is open. Close it and restart to manage dependency updates.";
+                StartupMessage = "Another VideoDownloader window is open. Close it and restart to manage dependency updates.";
             else if (Store.AcquireSession(TimeSpan.FromSeconds(1)))
                 StartupMessage = Store.ActivateAtStartupAsync(false).GetAwaiter().GetResult();
             else StartupMessage = "Dependency update state is still in use. Close and reopen the app to manage updates.";
@@ -78,7 +78,9 @@ public static class DependencyUpdateCoordinator
 
     private static bool OtherAppIsRunning()
     {
-        foreach (var process in Process.GetProcessesByName("AnyDownloader.Windows"))
+        // "AnyDownloader.Windows" is the pre-rename exe; an old build may still be running.
+        foreach (var name in new[] { "VideoDownloader", "AnyDownloader.Windows" })
+        foreach (var process in Process.GetProcessesByName(name))
         {
             using (process) if (IsLiveOtherProcess(process, Environment.ProcessId)) return true;
         }

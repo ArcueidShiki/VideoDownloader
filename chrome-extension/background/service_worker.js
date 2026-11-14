@@ -1,7 +1,7 @@
 'use strict';
 
 // ============================================================
-// AnyDownloader — Background Service Worker (Manifest V3)
+// VideoDownloader — Background Service Worker (Manifest V3)
 //
 // Responsibilities:
 //   1. Badge the toolbar icon when a downloadable page is detected
@@ -15,7 +15,7 @@ const BADGE_COLOR_ACTIVE = '#7c3aed';
 const CONTEXT_MENU_ID    = 'anydownloader-send-to-app';
 // Custom URL scheme registered by the desktop app (see macOS Info.plist → CFBundleURLTypes,
 // Windows installer → HKCR\anydownloader). Opening this URL hands control to the OS,
-// which launches AnyDownloader.app with the embedded download request.
+// which launches VideoDownloader.app with the embedded download request.
 const DEEP_LINK_SCHEME   = 'anydownloader';
 
 // ============================================================
@@ -24,7 +24,7 @@ const DEEP_LINK_SCHEME   = 'anydownloader';
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   chrome.contextMenus.create({
     id:       CONTEXT_MENU_ID,
-    title:    'Download with AnyDownloader',
+    title:    'Download with VideoDownloader',
     contexts: ['link', 'page'],
   });
 
@@ -59,7 +59,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 //   registration hands the request over automatically.
 //
 // Strategy: create a hidden tab pointed at the deep link. Chrome surfaces
-// the OS protocol handler (which opens AnyDownloader.app), then we close
+// the OS protocol handler (which opens VideoDownloader.app), then we close
 // the tab so the user never sees it.
 // ============================================================
 function launchDesktopApp({ url, title, quality }) {
@@ -77,7 +77,7 @@ function launchDesktopApp({ url, title, quality }) {
       broadcastToPopup({
         type: 'NATIVE_ERROR',
         error: chrome.runtime.lastError?.message
-          || 'Could not open AnyDownloader. Is the desktop app installed?',
+          || 'Could not open VideoDownloader. Is the desktop app installed?',
       });
       return;
     }
@@ -89,7 +89,7 @@ function launchDesktopApp({ url, title, quality }) {
       if (tab.id != null) chrome.tabs.remove(tab.id).catch(() => {});
     }, 600);
 
-    showNotification('Sent to AnyDownloader', title || url);
+    showNotification('Sent to VideoDownloader', title || url);
     broadcastToPopup({ type: 'SENT_SUCCESS', url });
   });
 }

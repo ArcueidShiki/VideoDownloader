@@ -32,7 +32,7 @@ public sealed class DependencyUpdater
     public static HttpClient CreateHttpClient()
     {
         var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromMinutes(4) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("AnyDownloader/1.1");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("VideoDownloader/1.1");
         return http;
     }
 
@@ -73,7 +73,7 @@ public sealed class DependencyUpdater
             }
             if (!necessary) localStatus?.Invoke(new("Installed video dependencies passed local checks."));
             if (!_store.OwnsSession)
-                return new("Another AnyDownloader window manages updates.", false, necessary);
+                return new("Another VideoDownloader window manages updates.", false, necessary);
             if (_store.Pending is { } pending)
                 return new("Verified dependencies are ready. Restart to install them.", true, necessary || pending.Required);
             var releases = new List<DependencyRelease>();

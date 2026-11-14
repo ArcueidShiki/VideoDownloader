@@ -26,6 +26,6 @@ jobs:
         run: ./scripts/build-windows.ps1 -RefreshTools
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: AnyDownloader-Windows-x64
+          name: VideoDownloader-Windows-x64
           path: release/windows/*
           if-no-files-found: error

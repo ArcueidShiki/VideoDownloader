@@ -4,7 +4,7 @@ import SwiftUI
 // AppUpdateBannerView
 //
 // A slim, dismissible banner that slides in under the toolbar when a newer
-// version of AnyDownloader is available in the Mac App Store.
+// version of VideoDownloader is available in the Mac App Store.
 //
 // Tapping "Update Now" opens the App Store product page directly.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -86,7 +86,7 @@ private struct ReleaseNotesView: View {
                     .font(.title2)
                     .foregroundColor(.accentColor)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("AnyDownloader \(version)")
+                    Text("VideoDownloader \(version)")
                         .font(.headline)
                     Text("Now available in the Mac App Store")
                         .font(.caption)

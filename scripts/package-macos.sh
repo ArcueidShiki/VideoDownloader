@@ -11,15 +11,19 @@ xcodebuild -project "$ROOT/macos/AnyDownloader.xcodeproj" -scheme AnyDownloader 
   -configuration Release -derivedDataPath "$ROOT/macos/.build-app" \
   ARCHS="$ARCHS" ONLY_ACTIVE_ARCH=NO \
   CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= build
-APP="$ROOT/macos/.build-app/Build/Products/Release/AnyDownloader.app"
+APP_NAME=VideoDownloader
+APP="$ROOT/macos/.build-app/Build/Products/Release/$APP_NAME.app"
 EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist")
 [ -x "$APP/Contents/MacOS/$EXECUTABLE" ]
 [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundlePackageType' "$APP/Contents/Info.plist")" = APPL ]
 codesign --verify --deep --strict "$APP"
-STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-DEST="$OUT/AnyDownloader-$STAMP.app"
-[ ! -e "$DEST" ]
+VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
+# Fixed names: each build replaces the previous one, so release/ only holds the latest.
+DEST="$OUT/$APP_NAME.app"
+ZIP="$OUT/$APP_NAME-$VERSION-macOS.zip"
+rm -rf "$DEST" "$ZIP"
 ditto "$APP" "$DEST"
-ditto -c -k --sequesterRsrc --keepParent "$DEST" "$OUT/AnyDownloader-$STAMP.zip"
+ditto -c -k --sequesterRsrc --keepParent "$DEST" "$ZIP"
 echo "Local ad-hoc signed app: $DEST"
+echo "Zip: $ZIP"
 echo 'External tools: brew install yt-dlp deno ffmpeg aria2'

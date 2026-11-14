@@ -1,7 +1,7 @@
 'use strict';
 
 // ============================================================
-// AnyDownloader — Content Script
+// VideoDownloader — Content Script
 //
 // Injected into every tab at document_idle.
 // Detects whether the current page is a supported video page

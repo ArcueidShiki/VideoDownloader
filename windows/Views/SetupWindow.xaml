@@ -18,7 +18,7 @@
 
         <!-- ── Header ── -->
         <StackPanel Grid.Row="0" Margin="0,0,0,24">
-            <TextBlock Text="Setting Up AnyDownloader"
+            <TextBlock Text="Setting Up VideoDownloader"
                        Style="{StaticResource TitleTextBlockStyle}"
                        Margin="0,0,0,8"/>
             <TextBlock x:Name="SubtitleText"
@@ -100,7 +100,7 @@
                     Click="RetryButton_Click"
                     Visibility="Collapsed"/>
             <Button x:Name="ContinueButton"
-                    Content="Continue to AnyDownloader"
+                    Content="Continue to VideoDownloader"
                     Style="{StaticResource AccentButtonStyle}"
                     Click="ContinueButton_Click"
                     IsEnabled="False"/>

@@ -76,7 +76,7 @@ public struct DependencyStatus: Sendable {
                 let words = String(decoding: local.stdout, as: UTF8.self).split(whereSeparator: \.isWhitespace)
                 guard let current = words.first(where: { $0.first?.isNumber == true }) else { continue }
                 var request = URLRequest(url: URL(string: "https://api.github.com/repos/\(repository)/releases/latest")!)
-                request.setValue("AnyDownloader-macOS", forHTTPHeaderField: "User-Agent")
+                request.setValue("VideoDownloader-macOS", forHTTPHeaderField: "User-Agent")
                 let (data, response) = try await session.data(for: request)
                 guard (response as? HTTPURLResponse)?.statusCode == 200, data.count < 1_048_576,
                       let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],

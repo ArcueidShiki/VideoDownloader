@@ -26,7 +26,7 @@ struct DependencySetupView: View {
                     .frame(width: 56, height: 56)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("AnyDownloader Setup")
+                    Text("VideoDownloader Setup")
                         .font(.title2.bold())
                     Text("Install the tools needed for video and torrent downloads.")
                         .font(.subheadline)

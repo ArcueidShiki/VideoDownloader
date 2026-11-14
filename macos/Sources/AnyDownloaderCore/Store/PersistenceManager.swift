@@ -186,6 +186,7 @@ public final class PersistenceManager: Sendable {
             for: .applicationSupportDirectory,
             in: .userDomainMask
         ).first!
+        // Legacy folder name kept on purpose: renaming it would orphan existing download history.
         let dir = appSupport.appendingPathComponent("AnyDownloader")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("downloads.sqlite").path

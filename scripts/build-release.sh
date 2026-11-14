@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-click release build for AnyDownloader (run on macOS).
+# One-click release build for VideoDownloader (run on macOS).
 #
 #   scripts/build-release.sh                 # macOS tests + universal .app/.zip, then Windows via CI
 #   scripts/build-release.sh --skip-windows  # macOS only
@@ -7,9 +7,10 @@
 #   scripts/build-release.sh --allow-unpushed  # let CI build origin/<branch> despite local edits
 #
 # Outputs:
-#   release/AnyDownloader-<timestamp>.app / .zip      (macOS, universal, ad-hoc signed)
-#   release/windows/AnyDownloader-<ver>-x64-setup.exe  (Windows installer)
-#   release/windows/AnyDownloader-<ver>-x64-portable.zip
+#   release/VideoDownloader.app, release/VideoDownloader-<ver>-macOS.zip  (universal, ad-hoc signed)
+#   release/windows/VideoDownloader-<ver>-x64-setup.exe  (Windows installer)
+#   release/windows/VideoDownloader-<ver>-x64-portable.zip
+#   Each run replaces the previous outputs, so release/ only holds the latest build.
 #
 # Windows cannot be compiled on macOS (the WinUI XAML compiler is a Windows-only
 # .NET Framework tool), so this script dispatches .github/workflows/windows-release.yml
@@ -19,7 +20,7 @@ set -euo pipefail
 
 ROOT=$(cd -- "$(dirname -- "$0")/.." && pwd)
 WORKFLOW=windows-release.yml
-ARTIFACT=AnyDownloader-Windows-x64
+ARTIFACT=VideoDownloader-Windows-x64
 WIN_OUT="$ROOT/release/windows"
 DISPATCH_WAIT_SECONDS=90
 
@@ -53,7 +54,7 @@ build_macos() {
   local archs
   archs=$(lipo -archs "$app/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")")
   echo "    $app  [$archs]"
-  echo "    ${app%.app}.zip"
+  echo "    $(echo "$log" | sed -n 's/^Zip: //p')"
 }
 
 # CI builds origin/<branch>. A mismatch would ship a Windows build that differs from

@@ -68,7 +68,7 @@ struct PremiumPaywallSheet: View {
                     .font(.system(size: 44))
                     .foregroundColor(.yellow)
 
-                Text("AnyDownloader Premium")
+                Text("VideoDownloader Premium")
                     .font(.title2).bold()
 
                 Text("Unlimited downloads, batch mode,\nand priority support — one-time payment.")

@@ -56,7 +56,7 @@ struct PaymentView: View {
                     .padding(24)
                 }
             }
-            .navigationTitle("Upgrade AnyDownloader")
+            .navigationTitle("Upgrade VideoDownloader")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }

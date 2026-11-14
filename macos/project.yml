@@ -47,6 +47,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.anydownloader.app
+        # User-facing name; module name and bundle ID stay so existing data is kept.
+        PRODUCT_NAME: VideoDownloader
+        PRODUCT_MODULE_NAME: AnyDownloader
         SWIFT_VERSION: "6.0"
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         INFOPLIST_FILE: AnyDownloader/Info.plist

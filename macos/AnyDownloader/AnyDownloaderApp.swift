@@ -43,7 +43,7 @@ struct AnyDownloaderApp: App {
             }
         }
 
-        MenuBarExtra("AnyDownloader", systemImage: "arrow.down.circle") {
+        MenuBarExtra("VideoDownloader", systemImage: "arrow.down.circle") {
             MenuBarView()
                 .environment(store)
         }
@@ -66,7 +66,7 @@ struct AnyDownloaderApp: App {
             .trimmingCharacters(in: .whitespaces) ?? ""
 
         guard !targetURL.isEmpty else {
-            NSLog("[AnyDownloader] Deep link missing ?url= parameter: \(url)")
+            NSLog("[VideoDownloader] Deep link missing ?url= parameter: \(url)")
             return
         }
 
@@ -75,7 +75,7 @@ struct AnyDownloaderApp: App {
             do {
                 try await store.add(url: targetURL, options: opts)
             } catch {
-                NSLog("[AnyDownloader] Deep link add failed: \(error.localizedDescription)")
+                NSLog("[VideoDownloader] Deep link add failed: \(error.localizedDescription)")
             }
         }
     }

@@ -23,7 +23,7 @@ public sealed partial class SetupWindow : Window
     public SetupWindow()
     {
         InitializeComponent();
-        Title = "AnyDownloader — First-Time Setup";
+        Title = "VideoDownloader — First-Time Setup";
         AppWindow.Resize(new WinGraphics.SizeInt32(640, 500));
         _ = ApplyIconAsync();
 
@@ -83,7 +83,7 @@ public sealed partial class SetupWindow : Window
 
             StatusText.Text           = "All tools installed successfully.";
             ContinueButton.IsEnabled  = true;
-            SubtitleText.Text         = "Setup complete. Click Continue to start AnyDownloader.";
+            SubtitleText.Text         = "Setup complete. Click Continue to start VideoDownloader.";
         }
         catch (OperationCanceledException)
         {

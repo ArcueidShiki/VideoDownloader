@@ -10,6 +10,10 @@
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>AnyDownloader.Windows</RootNamespace>
+    <!-- User-facing name; namespaces and data folders keep the legacy name. -->
+    <AssemblyName>VideoDownloader</AssemblyName>
+    <Product>VideoDownloader</Product>
+    <AssemblyTitle>VideoDownloader</AssemblyTitle>
     <ApplicationManifest>app.manifest</ApplicationManifest>
 
     <!-- Multi-architecture support -->

@@ -65,7 +65,7 @@ public struct YtDlpUpdater: Sendable {
 
     public static var defaultRoot: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("AnyDownloader/yt-dlp", isDirectory: true)
+            .appendingPathComponent("AnyDownloader/yt-dlp", isDirectory: true) // legacy data folder name, kept
     }
 
     public let root: URL
@@ -210,7 +210,7 @@ public struct YtDlpUpdater: Sendable {
 
 extension YtDlpUpdater.Source {
     /// Generic product User-Agent only — no user or machine identifiers.
-    private static let userAgent = "AnyDownloader-macOS"
+    private static let userAgent = "VideoDownloader-macOS"
 
     public static let github = YtDlpUpdater.Source(
         latestTag: {

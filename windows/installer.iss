@@ -1,4 +1,4 @@
-; AnyDownloader — Inno Setup installer script
+; VideoDownloader — Inno Setup installer script
 ; Usage:
 ;   x64:   ISCC installer.iss /DArch=x64
 ;   x86:   ISCC installer.iss /DArch=x86
@@ -12,10 +12,10 @@
   #define CompressionPreset "lzma2/ultra64"
 #endif
 
-#define AppName      "AnyDownloader"
+#define AppName      "VideoDownloader"
 #define AppVersion   "1.1.2"
-#define AppPublisher "AnyDownloader"
-#define AppExeName   "AnyDownloader.Windows.exe"
+#define AppPublisher "VideoDownloader"
+#define AppExeName   "VideoDownloader.exe"
 #ifndef PublishDir
   #define PublishDir "publish\" + Arch
 #endif
@@ -28,8 +28,9 @@ AppPublisher={#AppPublisher}
 DefaultDirName={localappdata}\Programs\{#AppName}
 PrivilegesRequired=lowest
 DefaultGroupName={#AppName}
+UsePreviousGroup=no
 OutputDir=dist
-OutputBaseFilename=AnyDownloader-{#AppVersion}-{#Arch}-setup
+OutputBaseFilename=VideoDownloader-{#AppVersion}-{#Arch}-setup
 Compression={#CompressionPreset}
 SolidCompression=yes
 #if Arch == "x64"
@@ -58,6 +59,12 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; WinUI and .NET self-contained apps require the complete publish directory.
 ; Keep tools\ intact: BinaryResolver looks there, including the bundled JS runtime.
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[InstallDelete]
+; Upgrades from the pre-rename "AnyDownloader" build (same AppId): remove the old exe and shortcuts.
+Type: files;          Name: "{app}\AnyDownloader.Windows.*"
+Type: files;          Name: "{autodesktop}\AnyDownloader.lnk"
+Type: filesandordirs; Name: "{autoprograms}\AnyDownloader"
 
 [Icons]
 Name: "{group}\{#AppName}";           Filename: "{app}\{#AppExeName}"

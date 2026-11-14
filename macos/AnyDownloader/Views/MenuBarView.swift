@@ -6,7 +6,7 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("AnyDownloader").font(.headline).padding(.bottom, 4)
+            Text("VideoDownloader").font(.headline).padding(.bottom, 4)
             if store.activeCount == 0 {
                 Text("No active downloads").foregroundColor(.secondary)
             } else {
@@ -20,7 +20,7 @@ struct MenuBarView: View {
                 }
             }
             Divider()
-            Button("Open AnyDownloader") { NSApp.activate(ignoringOtherApps: true) }
+            Button("Open VideoDownloader") { NSApp.activate(ignoringOtherApps: true) }
             Button("Quit") { NSApp.terminate(nil) }
         }
         .padding(10)

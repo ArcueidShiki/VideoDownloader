@@ -1,7 +1,7 @@
 'use strict';
 
 // ============================================================
-// AnyDownloader Popup — Video detection + send to desktop app
+// VideoDownloader Popup — Video detection + send to desktop app
 //
 // States:
 //   detected  → Video found on current page, ready to send
@@ -65,7 +65,7 @@ function setAppStatus(connected) {
   // With deep-link handoff, "connected" just means the extension is ready
   // to invoke the OS protocol handler — the desktop app will launch on click.
   $('statusText').textContent = connected
-    ? 'Ready — will open AnyDownloader app'
+    ? 'Ready — will open VideoDownloader app'
     : 'Extension not ready';
 }
 
@@ -85,7 +85,7 @@ async function checkApp() {
 
 // ── Send to desktop app ─────────────────────────────────────────────────
 // The background worker builds an `anydownloader://download?url=...` deep link
-// and opens it in a scratch tab; the OS routes it to AnyDownloader.app.
+// and opens it in a scratch tab; the OS routes it to VideoDownloader.app.
 function sendToApp(url, title, quality) {
   chrome.runtime.sendMessage({
     type: 'SEND_TO_APP',
@@ -100,7 +100,7 @@ function sendToApp(url, title, quality) {
     msg.style.display = 'flex';
     setTimeout(() => { msg.style.display = 'none'; }, 3000);
   }
-  showToast('Opening AnyDownloader…', 'success');
+  showToast('Opening VideoDownloader…', 'success');
 }
 
 // ── Paste from clipboard ────────────────────────────────────────────────
@@ -127,12 +127,12 @@ chrome.runtime.onMessage.addListener((message) => {
   // NATIVE_ERROR is fired when the background worker could not open the
   // deep-link tab (rare — typically only if the tabs API itself failed).
   if (message.type === 'NATIVE_ERROR') {
-    showToast('Could not launch AnyDownloader. Install the desktop app first.', 'error');
+    showToast('Could not launch VideoDownloader. Install the desktop app first.', 'error');
     setAppStatus(false);
   }
 
   if (message.type === 'SENT_SUCCESS') {
-    showToast('Opened AnyDownloader', 'success');
+    showToast('Opened VideoDownloader', 'success');
   }
 });
 

@@ -107,7 +107,7 @@ public sealed class ToolsInstaller
         Directory.CreateDirectory(BinDir);
 
         using var http = new HttpClient();
-        http.DefaultRequestHeaders.Add("User-Agent", "AnyDownloader/1.0");
+        http.DefaultRequestHeaders.Add("User-Agent", "VideoDownloader/1.0");
         http.Timeout = TimeSpan.FromMinutes(10);
 
         await InstallYtDlpAsync(http, progress, ct);

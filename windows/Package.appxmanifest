@@ -12,8 +12,8 @@
     ProcessorArchitecture="x64" />
 
   <Properties>
-    <DisplayName>AnyDownloader</DisplayName>
-    <PublisherDisplayName>AnyDownloader</PublisherDisplayName>
+    <DisplayName>VideoDownloader</DisplayName>
+    <PublisherDisplayName>VideoDownloader</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
@@ -30,7 +30,7 @@
                  Executable="$targetnametoken$.exe"
                  EntryPoint="$targetentrypoint$">
       <uap:VisualElements
-        DisplayName="AnyDownloader"
+        DisplayName="VideoDownloader"
         Description="Universal downloader — video, torrent, and HTTP"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"

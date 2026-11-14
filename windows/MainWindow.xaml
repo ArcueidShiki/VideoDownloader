@@ -5,7 +5,7 @@
     xmlns:local="using:AnyDownloader.Windows"
     xmlns:models="using:AnyDownloader.Windows.Models"
     xmlns:viewmodels="using:AnyDownloader.Windows.ViewModels"
-    Title="AnyDownloader">
+    Title="VideoDownloader">
 
     <Grid RequestedTheme="Dark"
           Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">

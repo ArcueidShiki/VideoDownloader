@@ -1,13 +1,13 @@
 <#
 .SYNOPSIS
-  One-click Windows x64 release build for AnyDownloader.
+  One-click Windows x64 release build for VideoDownloader.
 
 .DESCRIPTION
   1. Downloads the bundled tools (yt-dlp, Deno, FFmpeg/ffprobe, aria2c) into
      windows\tools\ and verifies SHA-256 against upstream checksum files.
   2. Runs the Windows unit tests (skip with -SkipTests).
   3. dotnet publish (self-contained, unpackaged WinUI) -> windows\publish\x64.
-  4. Inno Setup -> release\windows\AnyDownloader-<ver>-x64-setup.exe
+  4. Inno Setup -> release\windows\VideoDownloader-<ver>-x64-setup.exe
      plus a portable zip of the publish folder.
 
   Must run on Windows: the WinUI XAML compiler is a .NET Framework executable.
@@ -145,7 +145,7 @@ try {
     if (-not $versionNode) { throw 'No <Version> in AnyDownloader.Windows.csproj' }
     $version = $versionNode.InnerText.Trim()
 
-    Write-Step "AnyDownloader for Windows $version (x64)"
+    Write-Step "VideoDownloader for Windows $version (x64)"
     Write-Step 'Bundled tools'
     Install-Tools
 
@@ -165,7 +165,7 @@ try {
             -p:WindowsAppSDKSelfContained=true -p:PublishSingleFile=false `
             -p:EnableMsixTooling=true -o $PublishDir
     }
-    foreach ($required in 'AnyDownloader.Windows.exe', 'yt-dlp.exe', 'deno.exe', 'ffmpeg.exe', 'ffprobe.exe', 'aria2c.exe') {
+    foreach ($required in 'VideoDownloader.exe', 'yt-dlp.exe', 'deno.exe', 'ffmpeg.exe', 'ffprobe.exe', 'aria2c.exe') {
         if (-not (Get-ChildItem -Path $PublishDir -Recurse -Filter $required | Select-Object -First 1)) {
             throw "Publish output is missing $required"
         }
@@ -173,7 +173,7 @@ try {
 
     New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
     Write-Step 'Portable zip'
-    $zip = Join-Path $OutDir "AnyDownloader-$version-x64-portable.zip"
+    $zip = Join-Path $OutDir "VideoDownloader-$version-x64-portable.zip"
     if (Test-Path $zip) { Remove-Item $zip -Force }
     Compress-Archive -Path (Join-Path $PublishDir '*') -DestinationPath $zip
     Write-Host "    $zip"
